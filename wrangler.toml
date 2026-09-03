@@ -5,7 +5,7 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "ticket-pilot-db"
-database_id = "DEINE_D1_DATABASE_ID_HIER"
+database_id = "9d968444-f846-4756-b1ca-6d4fdea0ce71"
 
 # Falls du Cloudflare Pages mit Next.js nutzt:
 # (wird beim Deploy automatisch gesetzt)
