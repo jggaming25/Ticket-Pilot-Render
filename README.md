@@ -17,24 +17,29 @@ Das moderne Ticket-System für Teams. Erstelle, verwalte und tracke Tickets einf
 
 ## Tech-Stack
 
-| Bereich | Technologie |
-|---|---|
-| Frontend | Next.js 14, TypeScript, Tailwind CSS |
-| Datenbank | Cloudflare D1 (SQLite) via @libsql/client |
-| ORM | Drizzle ORM |
-| Auth | NextAuth.js |
-| Email | Resend |
-| Realtime | Ably |
-| Hosting | Cloudflare Pages |
+| Bereich   | Technologie                          |
+| --------- | ------------------------------------- |
+| Frontend  | Next.js 14, TypeScript, Tailwind CSS  |
+| Datenbank | PostgreSQL (Render)                   |
+| ORM       | Drizzle ORM (node-postgres)           |
+| Auth      | NextAuth.js                           |
+| Email     | Resend                                |
+| Realtime  | Ably                                  |
+| Hosting   | Render (Web Service)                  |
 
 ## Quick Start (lokal)
+
+Voraussetzung: eine lokale Postgres-Instanz (z.B. via Docker: `docker run -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=ticket_pilot -p 5432:5432 postgres`).
 
 ```bash
 # Abhängigkeiten installieren
 npm install
 
+# .env anlegen (siehe .env.example) und DATABASE_URL setzen
+cp .env.example .env
+
 # Datenbank initialisieren
-npx drizzle-kit push
+npm run db:push
 
 # Server starten
 npm run dev
@@ -42,86 +47,47 @@ npm run dev
 
 Öffne `http://localhost:3000`
 
-## Deploy auf Cloudflare Pages
+## Deploy auf Render
 
-### 1. Cloudflare D1 Datenbank erstellen
+### Variante A: Blueprint (empfohlen)
 
-```bash
-# Cloudflare CLI installieren
-npm install -g wrangler
+Das Repo enthält `render.yaml`. Damit legt Render Web Service + Postgres-DB automatisch an:
 
-# Einloggen
-wrangler login
+1. Repo zu GitHub pushen
+2. In Render: **New → Blueprint** → Repo auswählen
+3. Render erkennt `render.yaml`, erstellt `ticket-pilot-db` (Postgres) und den Web Service `ticket-pilot`
+4. `DATABASE_URL` wird automatisch verknüpft, `NEXTAUTH_SECRET` automatisch generiert
+5. Fehlende Variablen manuell im Dashboard eintragen: `NEXTAUTH_URL` (deine `.onrender.com`-URL oder eigene Domain), `RESEND_API_KEY`, `EMAIL_FROM`, optional `DISCORD_CLIENT_ID`/`SECRET`, `ABLY_API_KEY`
+6. Deploy abwarten – Build führt automatisch `db:push` aus (Schema wird angelegt)
 
-# D1 Datenbank erstellen
-wrangler d1 create ticket-pilot-db
+### Variante B: Manuell im Dashboard
 
-# ID kopieren und in wrangler.toml eintragen
-
-# Schema auf D1 ausführen
-wrangler d1 execute ticket-pilot-db --remote --file=./schema.sql
-```
-
-### 2. Turso REST API (für Remote-Zugriff)
-
-Da Cloudflare D1 nur von Cloudflare-Edges aus erreichbar ist, nutzen wir Turso als REST-Proxy:
-
-```bash
-# Turso CLI installieren
-curl -sSfL https://get.tur.so/install.sh | bash
-turso auth signup
-
-# Database erstellen
-turso db create ticket-pilot
-turso db tokens create ticket-pilot
-
-# Werte in Environment Variables eintragen:
-# TURSO_DATABASE_URL=libsql://ticket-pilot-[dein-account].turso.io
-# TURSO_AUTH_TOKEN=dein-token
-```
-
-### 3. Deploy
-
-```bash
-# Git initialisieren und pushen
-git init
-git add .
-git commit -m "Initial: Ticket Pilot"
-git remote add origin https://github.com/DEIN_USER/ticket-pilot.git
-git push -u origin main
-
-# Auf Cloudflare Pages verbinden:
-# 1. cloudflare.com → Pages → Create a project
-# 2. GitHub Repo verbinden
-# 3. Build-Command: npm run build
-# 4. Output directory: .next
-# 5. Environment Variables setzen (siehe .env.example)
-```
+1. **New → PostgreSQL** erstellen, Namen merken, "Internal Database URL" kopieren
+2. **New → Web Service** → Repo verbinden
+   - Runtime: Node
+   - Build Command: `npm install && npm run db:push && npm run build`
+   - Start Command: `npm run start`
+3. Environment Variables setzen (siehe Tabelle unten), `DATABASE_URL` = die kopierte Postgres-URL
+4. Deploy starten
 
 ## Umgebungsvariablen
 
-| Variable | Beschreibung | Woher |
-|---|---|---|
-| `DATABASE_URL` | Lokale DB (dev) | `file:./dev.db` |
-| `TURSO_DATABASE_URL` | Cloud DB URL | Turso/D1 |
-| `TURSO_AUTH_TOKEN` | Cloud DB Token | Turso |
-| `NEXTAUTH_SECRET` | Session Secret | `openssl rand -base64 32` |
-| `NEXTAUTH_URL` | App URL | `https://deine-domain.com` |
-| `RESEND_API_KEY` | Email-Versand | [resend.com](https://resend.com) |
-| `EMAIL_FROM` | Absender-Email | Resend |
-| `DISCORD_CLIENT_ID` | Discord Login (opt.) | [discord.com/developers](https://discord.com/developers) |
-| `DISCORD_CLIENT_SECRET` | Discord Login (opt.) | Discord Developer Portal |
-| `ABLY_API_KEY` | Realtime (opt.) | [ably.com](https://ably.com) |
+| Variable                | Beschreibung          | Woher                                                     |
+| ------------------------ | ---------------------- | ---------------------------------------------------------- |
+| `DATABASE_URL`           | Postgres-Verbindung    | Render Postgres (automatisch bei Blueprint)                |
+| `NEXTAUTH_SECRET`        | Session Secret          | `openssl rand -base64 32` (Blueprint generiert automatisch) |
+| `NEXTAUTH_URL`           | App URL                | Deine Render-URL, z.B. `https://ticket-pilot.onrender.com` |
+| `RESEND_API_KEY`         | Email-Versand           | [resend.com](https://resend.com)                            |
+| `EMAIL_FROM`             | Absender-Email          | Resend                                                      |
+| `DISCORD_CLIENT_ID`      | Discord Login (opt.)   | [discord.com/developers](https://discord.com/developers)   |
+| `DISCORD_CLIENT_SECRET`  | Discord Login (opt.)   | Discord Developer Portal                                    |
+| `ABLY_API_KEY`           | Realtime (opt.)        | [ably.com](https://ably.com)                                |
 
-## Free-Tier Limits
+## Hinweis Render Free-Tier
 
-| Service | Limit | Ausreichend für |
-|---|---|---|
-| Cloudflare D1 | 5 GB + 5 Mio Ops/Monat | ~10.000+ Tickets/Monat |
-| Turso | 500 DBs, 9 GB | Reicht für Jahre |
-| Resend | 3.000 Emails/Monat | ~100 Bestätigungen/Tag |
-| Ably | 6 Mio Messages/Monat | 200 gleichzeitige User |
-| Cloudflare Pages | Unlimited Bandbreite | Kein Problem |
+- Kostenloser Web Service schläft nach 15 Min. Inaktivität ein (Cold Start beim nächsten Aufruf)
+- Kostenlose Postgres-DB wird nach 90 Tagen gelöscht, falls nicht auf bezahlten Plan upgegraded
+- Für Dauerbetrieb: Starter-Plan (Web Service + DB) empfehlenswert
 
 ## Lizenz
 
