@@ -43,3 +43,6 @@ dev.db
 
 # wrangler
 .wrangler/
+
+# temp scripts
+push-schema.ts
