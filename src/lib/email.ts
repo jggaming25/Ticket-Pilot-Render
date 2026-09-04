@@ -2,10 +2,19 @@ import { Resend } from "resend";
 
 function getResend() {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey || apiKey === "re_your_key_here") {
+  if (
+    !apiKey ||
+    !apiKey.startsWith("re_") ||
+    apiKey.startsWith("re_your_key") ||
+    apiKey.startsWith("re_123")
+  ) {
     return null;
   }
-  return new Resend(apiKey);
+  try {
+    return new Resend(apiKey);
+  } catch {
+    return null;
+  }
 }
 
 export async function sendVerificationEmail(
