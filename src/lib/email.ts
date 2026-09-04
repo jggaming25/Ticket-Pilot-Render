@@ -1,6 +1,12 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResend() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || apiKey === "re_your_key_here") {
+    return null;
+  }
+  return new Resend(apiKey);
+}
 
 export async function sendVerificationEmail(
   email: string,
@@ -31,6 +37,11 @@ export async function sendVerificationEmail(
         </div>`;
 
   try {
+    const resend = getResend();
+    if (!resend) {
+      console.warn("Resend not configured - skipping email");
+      return { success: true, skipped: true };
+    }
     await resend.emails.send({
       from: process.env.EMAIL_FROM || "Ticket Pilot <onboarding@resend.dev>",
       to: email,
