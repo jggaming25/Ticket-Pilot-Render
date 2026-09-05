@@ -66,6 +66,92 @@ async function sendViaEmailJS(params: {
   return true;
 }
 
+function buildVerificationHtml(opts: {
+  title: string;
+  subtitle: string;
+  buttonLabel: string;
+  helpText: string;
+  verifyUrl: string;
+}) {
+  const { title, subtitle, buttonLabel, helpText, verifyUrl } = opts;
+  const escapedUrl = verifyUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+
+  return `<!DOCTYPE html>
+<html lang="de" style="margin:0;padding:0;">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0b0d1d;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0b0d1d;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;">
+          <tr>
+            <td style="font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;padding:0 4px 24px 4px;">
+              <span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">Ticket&nbsp;Pilot</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:linear-gradient(135deg,#4338ca 0%,#6366f1 55%,#818cf8 100%);border-radius:20px;padding:1px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background-color:rgba(11,13,29,0.92);border-radius:20px;padding:36px 32px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="font-size:26px;line-height:34px;font-weight:700;color:#ffffff;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;padding-bottom:10px;">
+                          ${title}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:15px;line-height:23px;color:#9aa1c9;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;padding-bottom:28px;">
+                          ${subtitle}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding-bottom:24px;">
+                          <a href="${escapedUrl}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5 0%,#6366f1 50%,#818cf8 100%);color:#ffffff;font-size:15px;font-weight:600;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-decoration:none;padding:14px 32px;border-radius:12px;box-shadow:0 8px 24px rgba(99,102,241,0.4);">
+                            ${buttonLabel}
+                          </a>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:13px;line-height:20px;color:#6b7296;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-align:center;padding-bottom:6px;">
+                          Funktioniert der Button nicht?
+                        </td>
+                      </tr>
+                      <tr>
+                        <td align="center" style="padding-bottom:28px;">
+                          <a href="${escapedUrl}" style="font-size:12px;color:#8b93c9;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-decoration:underline;word-break:break-all;">
+                            ${escapedUrl}
+                          </a>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="border-top:1px solid rgba(255,255,255,0.08);padding-top:20px;font-size:12.5px;line-height:19px;color:#6b7296;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-align:center;">
+                          ${helpText}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top:20px;font-size:11px;line-height:17px;color:#4a5078;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-align:center;">
+              Ticket&nbsp;Pilot &mdash; Support-System &middot; Diese Mail wurde automatisch erstellt.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,
@@ -82,18 +168,24 @@ export async function sendVerificationEmail(
 
   const html =
     type === "register"
-      ? `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #4f46e5;">Willkommen bei Ticket Pilot!</h1>
-          <p>Vielen Dank für deine Registrierung. Bitte bestätige deine Email-Adresse:</p>
-          <a href="${verifyUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 16px 0;">Email bestätigen</a>
-          <p style="color: #666; font-size: 14px;">Falls du dich nicht registriert hast, ignoriere diese Nachricht.</p>
-        </div>`
-      : `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #4f46e5;">Ticket Pilot - Login-Bestätigung</h1>
-          <p>Jemand hat versucht, sich mit deinem Account einzuloggen. Bitte bestätige den Login:</p>
-          <a href="${verifyUrl}" style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 16px 0;">Login bestätigen</a>
-          <p style="color: #666; font-size: 14px;">Falls du das nicht warst, ändere sofort dein Passwort.</p>
-        </div>`;
+      ? buildVerificationHtml({
+          title: "Willkommen bei Ticket Pilot!",
+          subtitle:
+            "Vielen Dank für deine Registrierung. Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren.",
+          buttonLabel: "E-Mail bestätigen",
+          helpText:
+            "Falls du dich nicht auf Ticket Pilot registriert hast, kannst du diese E-Mail einfach ignorieren.",
+          verifyUrl,
+        })
+      : buildVerificationHtml({
+          title: "Login-Bestätigung",
+          subtitle:
+            "Jemand hat versucht, sich mit deinem Konto anzumelden. Bestätige den Login, um fortzufahren.",
+          buttonLabel: "Login bestätigen",
+          helpText:
+            "Falls du das nicht warst, solltest du sofort dein Passwort ändern.",
+          verifyUrl,
+        });
 
   // 1. Bevorzugt: EmailJS (funktioniert ohne eigene Domain)
   const emailjs = getEmailJS();
