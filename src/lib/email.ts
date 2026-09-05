@@ -257,10 +257,7 @@ export async function sendCommentNotice(params: {
     title: `Neuer Kommentar zu ${ticketLabel}`,
     paragraphs: [
       `${authorName} hat zum Ticket <strong>${ticketLabel}</strong> einen Kommentar hinzugefügt:`,
-      `<span style="color:#c7d2fe;background:rgba(99,102,241,0.12);display:block;padding:14px 16px;border-radius:10px;font-size:14px;line-height:21px;">${comment.replace(
-        /</g,
-        "&lt;"
-      ).replace(/\n/g, "<br>")}</span>`,
+      `„${comment.replace(/</g, "&lt;").replace(/\n/g, "<br>")}"`,
       "Öffne das Ticket in Ticket Pilot, um zu antworten.",
     ],
     buttonLabel: "Ticket öffnen",
@@ -279,7 +276,7 @@ export async function sendPasswordReset(email: string, password: string) {
     title: "Dein neues Passwort",
     paragraphs: [
       "Es wurde ein neues Passwort für dein Ticket Pilot Konto erstellt:",
-      `<span style="color:#c7d2fe;background:rgba(99,102,241,0.12);display:block;padding:14px 16px;border-radius:10px;font-size:16px;letter-spacing:1px;text-align:center;font-family:ui-monospace,monospace;">${password}</span>`,
+      `Dein neues Passwort: <span style="color:#ffffff;font-weight:700;font-size:18px;">${password}</span>`,
       "Melde dich damit an und ändere dein Passwort anschließend in den Einstellungen.",
     ],
     buttonLabel: "Zum Login",

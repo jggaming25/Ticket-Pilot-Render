@@ -125,6 +125,17 @@ export default function AdminPage() {
     setTimeout(() => setNotice(""), 4000);
   };
 
+  const notifyAnnouncementChange = () => {
+    // Leiste im selben Tab sofort aktualisieren
+    window.dispatchEvent(new CustomEvent("tp:announcements-changed"));
+    // andere Tabs desselben Browsers
+    try {
+      new BroadcastChannel("tp.announcements").postMessage("changed");
+    } catch {
+      // Kanal nicht verfügbar -> der Poll (30 s) holt es nach
+    }
+  };
+
   const createAnnouncement = async () => {
     if (!aMsg.trim()) return;
     const res = await fetch("/api/admin/announcements", {
@@ -136,6 +147,7 @@ export default function AdminPage() {
       setAMsg("");
       flash("Meldung wurde veröffentlicht");
       loadData();
+      notifyAnnouncementChange();
     } else {
       flash("Fehler beim Veröffentlichen");
     }
@@ -148,6 +160,7 @@ export default function AdminPage() {
     if (res.ok) {
       flash("Meldung entfernt");
       loadData();
+      notifyAnnouncementChange();
     }
   };
 
