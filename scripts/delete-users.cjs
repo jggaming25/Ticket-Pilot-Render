@@ -11,7 +11,7 @@ if (!token) {
 
 const PAT = process.argv[2];
 if (!PAT) {
-  console.error("Nutzung: node scripts/delete-users.cjs <email-or-teil>  (oder ALLE)");
+  console.error("Nutzung: node scripts/delete-users.cjs <email-or-teil> | ALLE | UNVERIFIED");
   process.exit(1);
 }
 
@@ -24,6 +24,8 @@ async function run() {
   let match;
   if (PAT.toLowerCase() === "alle") {
     match = all.rows;
+  } else if (PAT.toLowerCase() === "unverified") {
+    match = all.rows.filter((r) => r.email_verified == null);
   } else {
     match = all.rows.filter((r) => String(r.email || r.name).toLowerCase().includes(PAT.toLowerCase()));
   }
