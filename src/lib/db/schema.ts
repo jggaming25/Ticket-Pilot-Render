@@ -172,7 +172,7 @@ export const tickets = sqliteTable("tickets", {
   subject: text("subject").notNull(),
   description: text("description").notNull(),
   status: text("status", {
-    enum: ["open", "in_progress", "waiting", "resolved", "closed"],
+    enum: ["open", "in_progress", "waiting", "resolved", "ready_to_close", "closed"],
   })
     .notNull()
     .default("open"),
@@ -213,6 +213,8 @@ export const ticketComments = sqliteTable("ticket_comments", {
     .notNull()
     .references(() => users.id),
   content: text("content").notNull(),
+  cc: text("cc"),
+  bcc: text("bcc"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -237,9 +239,52 @@ export const ticketHistory = sqliteTable("ticket_history", {
       "status_changed",
       "edited",
       "transferred",
+      "ready_to_close",
+      "closed",
     ],
   }).notNull(),
   details: text("details"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const attachments = sqliteTable("attachments", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  ticketId: text("ticket_id")
+    .notNull()
+    .references(() => tickets.id, { onDelete: "cascade" }),
+  commentId: text("comment_id").references(() => ticketComments.id, {
+    onDelete: "cascade",
+  }),
+  uploadedById: text("uploaded_by_id")
+    .notNull()
+    .references(() => users.id),
+  filename: text("filename").notNull(),
+  mimeType: text("mime_type").notNull().default("application/octet-stream"),
+  size: integer("size").notNull().default(0),
+  data: text("data").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const notifications = sqliteTable("notifications", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  ticketId: text("ticket_id").references(() => tickets.id, {
+    onDelete: "cascade",
+  }),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  read: integer("read", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

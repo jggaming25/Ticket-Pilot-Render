@@ -36,7 +36,6 @@ async function sendViaEmailJS(params: {
   toEmail: string;
   subject: string;
   html: string;
-  verifyUrl: string;
 }) {
   const body: Record<string, unknown> = {
     service_id: params.serviceId,
@@ -46,7 +45,6 @@ async function sendViaEmailJS(params: {
       to_email: params.toEmail,
       subject: params.subject,
       html_content: params.html,
-      verify_url: params.verifyUrl,
     },
   };
   if (params.privateKey) {
@@ -66,15 +64,59 @@ async function sendViaEmailJS(params: {
   return true;
 }
 
-function buildVerificationHtml(opts: {
+async function sendRaw(toEmail: string, subject: string, html: string) {
+  // 1. Bevorzugt: EmailJS (funktioniert ohne eigene Domain)
+  const emailjs = getEmailJS();
+  if (emailjs) {
+    try {
+      await sendViaEmailJS({
+        serviceId: emailjs.serviceId,
+        templateId: emailjs.templateId,
+        publicKey: emailjs.publicKey,
+        privateKey: emailjs.privateKey,
+        toEmail,
+        subject,
+        html,
+      });
+      return { success: true, provider: "emailjs" };
+    } catch (error) {
+      console.error("EmailJS send error:", error);
+      return { success: false, error };
+    }
+  }
+
+  // 2. Fallback: Resend (benoetigt eine verifizierte Domain fuer echte Empfaenger)
+  try {
+    const resend = getResend();
+    if (!resend) {
+      console.warn("Kein Email-Anbieter konfiguriert - Email wird uebersprungen");
+      return { success: true, skipped: true };
+    }
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || "Ticket Pilot <onboarding@resend.dev>",
+      to: toEmail,
+      subject,
+      html,
+    });
+    return { success: true, provider: "resend" };
+  } catch (error) {
+    console.error("Email send error:", error);
+    return { success: false, error };
+  }
+}
+
+export function buildStyledHtml(opts: {
+  kicker?: string;
   title: string;
-  subtitle: string;
-  buttonLabel: string;
-  helpText: string;
-  verifyUrl: string;
+  paragraphs: string[];
+  buttonLabel?: string;
+  buttonUrl?: string;
+  footer?: string;
 }) {
-  const { title, subtitle, buttonLabel, helpText, verifyUrl } = opts;
-  const escapedUrl = verifyUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  const { kicker, title, paragraphs, buttonLabel, buttonUrl, footer } = opts;
+  const escapedUrl = buttonUrl
+    ? buttonUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="de" style="margin:0;padding:0;">
@@ -99,38 +141,42 @@ function buildVerificationHtml(opts: {
                 <tr>
                   <td style="background-color:rgba(11,13,29,0.92);border-radius:20px;padding:36px 32px;">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      ${
+                        kicker
+                          ? `<tr><td style="font-size:11px;line-height:16px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#818cf8;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;padding-bottom:10px;">${kicker}</td></tr>`
+                          : ""
+                      }
                       <tr>
-                        <td style="font-size:26px;line-height:34px;font-weight:700;color:#ffffff;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;padding-bottom:10px;">
+                        <td style="font-size:22px;line-height:30px;font-weight:700;color:#ffffff;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;padding-bottom:12px;">
                           ${title}
                         </td>
                       </tr>
-                      <tr>
-                        <td style="font-size:15px;line-height:23px;color:#9aa1c9;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;padding-bottom:28px;">
-                          ${subtitle}
+                      ${paragraphs
+                        .map(
+                          (p) => `<tr>
+                        <td style="font-size:15px;line-height:23px;color:#9aa1c9;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;padding-bottom:16px;">
+                          ${p}
                         </td>
-                      </tr>
-                      <tr>
-                        <td align="center" style="padding-bottom:24px;">
+                      </tr>`
+                        )
+                        .join("")}
+                      ${
+                        buttonLabel && escapedUrl
+                          ? `<tr>
+                        <td align="center" style="padding-top:8px;padding-bottom:24px;">
                           <a href="${escapedUrl}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5 0%,#6366f1 50%,#818cf8 100%);color:#ffffff;font-size:15px;font-weight:600;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-decoration:none;padding:14px 32px;border-radius:12px;box-shadow:0 8px 24px rgba(99,102,241,0.4);">
                             ${buttonLabel}
                           </a>
                         </td>
-                      </tr>
-                      <tr>
-                        <td style="font-size:13px;line-height:20px;color:#6b7296;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-align:center;padding-bottom:6px;">
-                          Funktioniert der Button nicht?
-                        </td>
-                      </tr>
-                      <tr>
-                        <td align="center" style="padding-bottom:28px;">
-                          <a href="${escapedUrl}" style="font-size:12px;color:#8b93c9;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-decoration:underline;word-break:break-all;">
-                            ${escapedUrl}
-                          </a>
-                        </td>
-                      </tr>
+                      </tr>`
+                          : ""
+                      }
                       <tr>
                         <td style="border-top:1px solid rgba(255,255,255,0.08);padding-top:20px;font-size:12.5px;line-height:19px;color:#6b7296;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-align:center;">
-                          ${helpText}
+                          ${
+                            footer ||
+                            "Diese E-Mail wurde automatisch von Ticket Pilot erstellt."
+                          }
                         </td>
                       </tr>
                     </table>
@@ -141,7 +187,7 @@ function buildVerificationHtml(opts: {
           </tr>
           <tr>
             <td style="padding-top:20px;font-size:11px;line-height:17px;color:#4a5078;font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;text-align:center;">
-              Ticket&nbsp;Pilot &mdash; Support-System &middot; Diese Mail wurde automatisch erstellt.
+              Ticket&nbsp;Pilot &mdash; Support-System
             </td>
           </tr>
         </table>
@@ -168,64 +214,59 @@ export async function sendVerificationEmail(
 
   const html =
     type === "register"
-      ? buildVerificationHtml({
+      ? buildStyledHtml({
+          kicker: "Registrierung",
           title: "Willkommen bei Ticket Pilot!",
-          subtitle:
+          paragraphs: [
             "Vielen Dank für deine Registrierung. Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren.",
+            "Der Link ist 24 Stunden gültig.",
+          ],
           buttonLabel: "E-Mail bestätigen",
-          helpText:
+          buttonUrl: verifyUrl,
+          footer:
             "Falls du dich nicht auf Ticket Pilot registriert hast, kannst du diese E-Mail einfach ignorieren.",
-          verifyUrl,
         })
-      : buildVerificationHtml({
+      : buildStyledHtml({
+          kicker: "Sicherheit",
           title: "Login-Bestätigung",
-          subtitle:
+          paragraphs: [
             "Jemand hat versucht, sich mit deinem Konto anzumelden. Bestätige den Login, um fortzufahren.",
+          ],
           buttonLabel: "Login bestätigen",
-          helpText:
+          buttonUrl: verifyUrl,
+          footer:
             "Falls du das nicht warst, solltest du sofort dein Passwort ändern.",
-          verifyUrl,
         });
 
-  // 1. Bevorzugt: EmailJS (funktioniert ohne eigene Domain)
-  const emailjs = getEmailJS();
-  if (emailjs) {
-    try {
-      await sendViaEmailJS({
-        serviceId: emailjs.serviceId,
-        templateId: emailjs.templateId,
-        publicKey: emailjs.publicKey,
-        privateKey: emailjs.privateKey,
-        toEmail: email,
-        subject,
-        html,
-        verifyUrl,
-      });
-      return { success: true, provider: "emailjs" };
-    } catch (error) {
-      console.error("EmailJS send error:", error);
-      return { success: false, error };
-    }
-  }
+  return sendRaw(email, subject, html);
+}
 
-  // 2. Fallback: Resend (benoetigt verifizierte Domain fuer Empfaenger)
-  try {
-    const resend = getResend();
-    if (!resend) {
-      console.warn("Kein Email-Anbieter konfiguriert - Email wird uebersprungen");
-      return { success: true, skipped: true };
-    }
-    await resend.emails.send({
-      from:
-        process.env.EMAIL_FROM ||
-        "Ticket Pilot <onboarding@resend.dev>",
-      to: email,
-      subject,
-      html,
-    });
-    return { success: true, provider: "resend" };
-  } catch (error) {
-    console.error("Email send error:", error);
-    return { success: false, error };
-  }
+export async function sendCommentNotice(params: {
+  toEmail: string;
+  ticketLabel: string;
+  ticketUrl: string;
+  authorName: string;
+  comment: string;
+  isBcc?: boolean;
+}) {
+  const { toEmail, ticketLabel, ticketUrl, authorName, comment, isBcc } = params;
+  const subject = `[${ticketLabel}] ${authorName} hat kommentiert`;
+
+  const html = buildStyledHtml({
+    kicker: isBcc ? "Ticket-Update (BCC)" : "Ticket-Update (CC)",
+    title: `Neuer Kommentar zu ${ticketLabel}`,
+    paragraphs: [
+      `${authorName} hat zum Ticket <strong>${ticketLabel}</strong> einen Kommentar hinzugefügt:`,
+      `<span style="color:#c7d2fe;background:rgba(99,102,241,0.12);display:block;padding:14px 16px;border-radius:10px;font-size:14px;line-height:21px;">${comment.replace(
+        /</g,
+        "&lt;"
+      ).replace(/\n/g, "<br>")}</span>`,
+      "Öffne das Ticket in Ticket Pilot, um zu antworten.",
+    ],
+    buttonLabel: "Ticket öffnen",
+    buttonUrl: ticketUrl,
+    footer: `Du erhältst diese E-Mail, weil du beim Kommentar in CC${isBcc ? "/BCC" : ""} standst.`,
+  });
+
+  return sendRaw(toEmail, subject, html);
 }

@@ -41,6 +41,7 @@ export function getStatusLabel(status: string): string {
     in_progress: "In Bearbeitung",
     waiting: "Wartend",
     resolved: "Gelöst",
+    ready_to_close: "Zum Schließen freigegeben",
     closed: "Geschlossen",
   };
   return labels[status] || status;
@@ -62,6 +63,7 @@ export function getStatusColor(status: string): string {
     in_progress: "status-in-progress",
     waiting: "status-waiting",
     resolved: "status-resolved",
+    ready_to_close: "status-ready-to-close",
     closed: "status-closed",
   };
   return colors[status] || "";

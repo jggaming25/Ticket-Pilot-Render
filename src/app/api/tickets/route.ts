@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { tickets, groupMembers, categories } from "@/lib/db/schema";
+import { tickets, groupMembers, categories, attachments } from "@/lib/db/schema";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -71,6 +73,8 @@ export async function GET(req: NextRequest) {
       priority: tickets.priority,
       dueDate: tickets.dueDate,
       createdAt: tickets.createdAt,
+      createdById: tickets.createdById,
+      claimedById: tickets.claimedById,
       category: {
         id: categories.id,
         name: categories.name,
@@ -101,6 +105,7 @@ export async function POST(req: NextRequest) {
     discordUsername,
     robloxUsername,
     dueDate,
+    attachments: attachmentFiles,
   } = body;
 
   if (!description || !groupId || !categoryId) {
@@ -161,6 +166,21 @@ export async function POST(req: NextRequest) {
     robloxUsername: robloxUsername || null,
     dueDate: dueDate ? new Date(dueDate) : null,
   });
+
+  if (Array.isArray(attachmentFiles)) {
+    for (const file of attachmentFiles) {
+      if (!file?.name || !file?.data) continue;
+      if (file.size > MAX_FILE_SIZE) continue;
+      await db.insert(attachments).values({
+        ticketId,
+        uploadedById: userId,
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size || 0,
+        data: file.data,
+      });
+    }
+  }
 
   return NextResponse.json({ ticket: { id: ticketId, subject } });
 }

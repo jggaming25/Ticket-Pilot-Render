@@ -17,6 +17,10 @@ import {
   CheckCircle,
   XCircle,
   Hand,
+  Paperclip,
+  ShieldCheck,
+  Send,
+  FileDown,
 } from "lucide-react";
 
 interface TicketData {
@@ -37,11 +41,24 @@ interface TicketData {
   createdBy: { id: string; name: string; image: string | null } | null;
   claimedBy: { id: string; name: string; image: string | null } | null;
   group: { id: string; name: string } | null;
+  attachments: Array<{
+    id: string;
+    filename: string;
+    mimeType: string;
+    size: number;
+    createdAt: string;
+    uploadedBy: { name: string } | null;
+  }>;
+  canCloseTickets: boolean;
+  myRole: string | null;
+  isOwnerOrAdmin: boolean;
 }
 
 interface Comment {
   id: string;
   content: string;
+  cc: string | null;
+  bcc: string | null;
   createdAt: string;
   user: { id: string; name: string; image: string | null };
 }
@@ -54,6 +71,17 @@ interface HistoryEntry {
   user: { name: string };
 }
 
+const HISTORY_LABELS: Record<string, string> = {
+  created: "hat Ticket erstellt",
+  claimed: "hat Ticket übernommen",
+  unclaimed: "hat Ticket zur Bearbeitung freigegeben",
+  commented: "hat kommentiert",
+  status_changed: "hat Status geändert",
+  edited: "hat bearbeitet",
+  ready_to_close: "hat Ticket zum Schließen freigegeben",
+  closed: "hat Ticket geschlossen",
+};
+
 export default function TicketDetailPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -64,9 +92,12 @@ export default function TicketDetailPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [newComment, setNewComment] = useState("");
+  const [ccEmails, setCcEmails] = useState("");
+  const [bccEmails, setBccEmails] = useState("");
   const [loading, setLoading] = useState(true);
   const [commentLoading, setCommentLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"comments" | "history">("comments");
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -78,6 +109,7 @@ export default function TicketDetailPage() {
       fetchComments();
       fetchHistory();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, ticketId]);
 
   const fetchTicket = async () => {
@@ -106,23 +138,40 @@ export default function TicketDetailPage() {
   };
 
   const handleClaim = async () => {
-    await fetch(`/api/tickets/${ticketId}/claim`, { method: "POST" });
+    setActionError("");
+    const res = await fetch(`/api/tickets/${ticketId}/claim`, { method: "POST" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setActionError(data.error || "Fehler");
+    }
     fetchTicket();
     fetchHistory();
   };
 
-  const handleUnclaim = async () => {
-    await fetch(`/api/tickets/${ticketId}/claim`, { method: "DELETE" });
+  const handleRelease = async () => {
+    setActionError("");
+    const res = await fetch(`/api/tickets/${ticketId}/claim`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setActionError(data.error || "Fehler");
+    }
     fetchTicket();
     fetchHistory();
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    await fetch(`/api/tickets/${ticketId}`, {
+    setActionError("");
+    const res = await fetch(`/api/tickets/${ticketId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setActionError(data.error || "Fehler");
+      fetchTicket();
+      return;
+    }
     fetchTicket();
     fetchHistory();
   };
@@ -131,20 +180,46 @@ export default function TicketDetailPage() {
     e.preventDefault();
     if (!newComment.trim()) return;
     setCommentLoading(true);
-    await fetch(`/api/tickets/${ticketId}/comments`, {
+    setActionError("");
+    const res = await fetch(`/api/tickets/${ticketId}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: newComment }),
+      body: JSON.stringify({
+        content: newComment,
+        cc: ccEmails,
+        bcc: bccEmails,
+      }),
     });
-    setNewComment("");
-    fetchComments();
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setActionError(data.error || "Fehler");
+    } else {
+      setNewComment("");
+      setCcEmails("");
+      setBccEmails("");
+    }
     setCommentLoading(false);
+    fetchComments();
   };
 
   const userId = (session?.user as any)?.id;
   const isCreator = ticket?.createdById === userId;
   const isClaimer = ticket?.claimedById === userId;
-  const canEdit = isClaimer || isCreator;
+  const isOwnerOrAdmin = ticket?.isOwnerOrAdmin || false;
+
+  const canComment = isClaimer || isCreator || isOwnerOrAdmin;
+  const canEditStatus = isClaimer || isCreator || isOwnerOrAdmin;
+  const canCloseFromSelect = isOwnerOrAdmin || ticket?.canCloseTickets;
+  const showReleaseForClose =
+    ticket &&
+    canEditStatus &&
+    !isOwnerOrAdmin &&
+    !ticket.canCloseTickets &&
+    ticket.status !== "closed" &&
+    ticket.status !== "ready_to_close";
+
+  const showCloseReadyButton =
+    ticket && isOwnerOrAdmin && ticket.status === "ready_to_close";
 
   if (loading) {
     return (
@@ -165,16 +240,18 @@ export default function TicketDetailPage() {
     );
   }
 
+  const isClosed = ticket.status === "closed";
+
   return (
     <div className="min-h-screen flex flex-col">
       <TopBar />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
         <Link
-          href="/dashboard"
+          href="/tickets"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
         >
           <ArrowLeft className="h-4 w-4" />
-          Zurück zum Dashboard
+          Zurück zu den Tickets
         </Link>
 
         {/* Ticket Header */}
@@ -243,11 +320,44 @@ export default function TicketDetailPage() {
             {ticket.robloxUsername && (
               <span>Roblox: {ticket.robloxUsername}</span>
             )}
+            {isOwnerOrAdmin && (
+              <span className="flex items-center gap-1 text-brand-500">
+                <ShieldCheck className="h-4 w-4" />
+                Inhaber
+              </span>
+            )}
           </div>
+
+          {/* Attachments */}
+          {ticket.attachments && ticket.attachments.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="flex items-center gap-2 text-sm font-medium mb-2">
+                <Paperclip className="h-4 w-4" />
+                Anhänge ({ticket.attachments.length})
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ticket.attachments.map((att) => (
+                  <a
+                    key={att.id}
+                    href={`/api/tickets/${ticket.id}/attachments/${att.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-secondary/50 px-3 py-1.5 text-xs font-medium hover:bg-secondary transition-colors"
+                  >
+                    <FileDown className="h-3.5 w-3.5 text-brand-500" />
+                    <span className="max-w-40 truncate">{att.filename}</span>
+                    <span className="text-muted-foreground">
+                      ({(att.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
-            {!ticket.claimedBy ? (
+            {!ticket.claimedBy && !isClosed && (
               <button
                 onClick={handleClaim}
                 className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
@@ -255,17 +365,38 @@ export default function TicketDetailPage() {
                 <Hand className="h-4 w-4" />
                 Ticket übernehmen
               </button>
-            ) : isClaimer ? (
+            )}
+            {isClaimer && !isClosed && (
               <button
-                onClick={handleUnclaim}
+                onClick={handleRelease}
                 className="inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-secondary/80 transition-colors"
               >
                 <XCircle className="h-4 w-4" />
-                Abgeben
+                Zur Bearbeitung freigeben
               </button>
-            ) : null}
+            )}
 
-            {canEdit && ticket.status !== "closed" && (
+            {showReleaseForClose && (
+              <button
+                onClick={() => handleStatusChange("ready_to_close")}
+                className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 transition-colors"
+              >
+                <CheckCircle className="h-4 w-4" />
+                Für Schließen freigeben
+              </button>
+            )}
+
+            {showCloseReadyButton && (
+              <button
+                onClick={() => handleStatusChange("closed")}
+                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+              >
+                <CheckCircle className="h-4 w-4" />
+                Ticket schließen
+              </button>
+            )}
+
+            {canEditStatus && !isClosed && (
               <select
                 value={ticket.status}
                 onChange={(e) => handleStatusChange(e.target.value)}
@@ -275,10 +406,18 @@ export default function TicketDetailPage() {
                 <option value="in_progress">In Bearbeitung</option>
                 <option value="waiting">Wartend</option>
                 <option value="resolved">Gelöst</option>
-                <option value="closed">Geschlossen</option>
+                {canCloseFromSelect && (
+                  <option value="closed">Geschlossen</option>
+                )}
               </select>
             )}
           </div>
+
+          {actionError && (
+            <div className="mt-3 rounded-lg bg-red-100 p-3 text-sm text-red-800 dark:bg-red-900 dark:text-red-200">
+              {actionError}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -325,13 +464,23 @@ export default function TicketDetailPage() {
                       {comment.user.name?.charAt(0)?.toUpperCase() || "?"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-sm font-medium">
                           {comment.user.name}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {formatDateTime(comment.createdAt)}
                         </span>
+                        {comment.cc && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            CC: {comment.cc}
+                          </span>
+                        )}
+                        {comment.bcc && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            BCC: {comment.bcc}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm whitespace-pre-wrap">
                         {comment.content}
@@ -342,22 +491,51 @@ export default function TicketDetailPage() {
               </div>
             )}
 
-            <form onSubmit={handleComment} className="flex gap-2">
-              <input
-                type="text"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Kommentar schreiben..."
-                className="flex-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-              <button
-                type="submit"
-                disabled={commentLoading || !newComment.trim()}
-                className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
-              >
-                Senden
-              </button>
-            </form>
+            {canComment && !isClosed ? (
+              <form onSubmit={handleComment} className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Kommentar schreiben..."
+                    className="flex-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={commentLoading || !newComment.trim()}
+                    className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+                  >
+                    <Send className="h-4 w-4" />
+                    Senden
+                  </button>
+                </div>
+                {(isClaimer || isOwnerOrAdmin) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={ccEmails}
+                      onChange={(e) => setCcEmails(e.target.value)}
+                      placeholder="CC-E-Mails (kommagetrennt)"
+                      className="rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    <input
+                      type="text"
+                      value={bccEmails}
+                      onChange={(e) => setBccEmails(e.target.value)}
+                      placeholder="BCC-E-Mails (kommagetrennt)"
+                      className="rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                  </div>
+                )}
+              </form>
+            ) : (
+              <p className="text-center text-sm text-muted-foreground py-4">
+                {isClosed
+                  ? "Das Ticket ist geschlossen."
+                  : "Nur der Bearbeiter oder der Gruppeninhaber kann kommentieren."}
+              </p>
+            )}
           </div>
         )}
 
@@ -381,12 +559,10 @@ export default function TicketDetailPage() {
                     </span>
                     <span className="font-medium">{entry.user.name}</span>
                     <span className="text-muted-foreground">
-                      {entry.action === "created" && "hat Ticket erstellt"}
-                      {entry.action === "claimed" && "hat Ticket übernommen"}
-                      {entry.action === "unclaimed" && "hat Ticket abgegeben"}
-                      {entry.action === "status_changed" && `Status geändert${entry.details ? `: ${entry.details}` : ""}`}
-                      {entry.action === "commented" && "hat kommentiert"}
-                      {entry.action === "edited" && "hat bearbeitet"}
+                      {HISTORY_LABELS[entry.action] || entry.action}
+                      {entry.action === "status_changed" && entry.details
+                        ? `: ${entry.details}`
+                        : ""}
                     </span>
                   </div>
                 ))}

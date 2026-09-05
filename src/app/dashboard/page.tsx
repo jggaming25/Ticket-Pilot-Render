@@ -9,28 +9,23 @@ import { Footer } from "@/components/Footer";
 import { formatDate, getStatusLabel, getPriorityLabel, getStatusColor } from "@/lib/utils";
 import {
   Plus,
-  Search,
-  Filter,
-  ChevronDown,
   Ticket,
+  Users,
   Clock,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
+  ArrowRight,
 } from "lucide-react";
 
 interface TicketData {
   id: string;
   ticketNumber: number;
   subject: string;
-  description: string;
   status: string;
   priority: string;
   dueDate: string | null;
   createdAt: string;
+  createdById: string;
+  claimedById: string | null;
   category: { name: string; color: string } | null;
-  createdBy: { name: string; image: string | null } | null;
-  claimedBy: { name: string; image: string | null } | null;
 }
 
 export default function DashboardPage() {
@@ -38,11 +33,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState("desc");
+
+  const userId = (session?.user as any)?.id;
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -50,38 +42,26 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (session) {
-      fetchTickets();
+      fetch("/api/tickets")
+        .then((r) => r.json())
+        .then((d) => {
+          setTickets(d.tickets || []);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
     }
-  }, [session, statusFilter, priorityFilter, sortBy, sortOrder]);
+  }, [session]);
 
-  const fetchTickets = async () => {
-    setLoading(true);
-    const params = new URLSearchParams({
-      status: statusFilter,
-      priority: priorityFilter,
-      sortBy,
-      sortOrder,
-    });
-    const res = await fetch(`/api/tickets?${params}`);
-    if (res.ok) {
-      const data = await res.json();
-      setTickets(data.tickets || []);
-    }
-    setLoading(false);
-  };
-
-  const filteredTickets = tickets.filter(
-    (t) =>
-      t.subject.toLowerCase().includes(search.toLowerCase()) ||
-      t.description.toLowerCase().includes(search.toLowerCase())
+  const myTickets = tickets.filter(
+    (t) => t.createdById === userId || t.claimedById === userId
   );
+  const assignedToMe = myTickets.filter((t) => {
+    if (t.claimedById !== userId) return false;
+    return !["closed", "resolved"].includes(t.status);
+  });
+  const createdByMe = myTickets.filter((t) => t.createdById === userId && !["closed"].includes(t.status));
 
-  const statusCounts = {
-    open: tickets.filter((t) => t.status === "open").length,
-    in_progress: tickets.filter((t) => t.status === "in_progress").length,
-    waiting: tickets.filter((t) => t.status === "waiting").length,
-    resolved: tickets.filter((t) => t.status === "resolved").length,
-  };
+  const allOpen = tickets.filter((t) => !["closed", "resolved"].includes(t.status)).length;
 
   if (status === "loading") {
     return (
@@ -95,119 +75,78 @@ export default function DashboardPage() {
     <div className="min-h-screen flex flex-col">
       <TopBar />
       <main className="flex-1 container mx-auto px-4 py-8">
-        {/* Stats */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold">
+            Hallo, {session?.user?.name || "willkommen"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Hier hast du deine Tickets im Blick und kannst sie bearbeiten.
+          </p>
+        </div>
+
+        {/* Quick stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            icon={<Ticket className="h-5 w-5 text-blue-500" />}
-            label="Offen"
-            value={statusCounts.open}
+          <StatCard label="Offene Tickets" value={allOpen} color="text-blue-500" />
+          <StatCard label="Mir zugewiesen" value={assignedToMe.length} color="text-yellow-500" />
+          <StatCard label="Von mir erstellt" value={createdByMe.length} color="text-green-500" />
+          <StatCard label="Alle Tickets" value={tickets.length} color="text-brand-500" />
+        </div>
+
+        {/* Quick actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <QuickLink
+            href="/tickets"
+            icon={<Ticket className="h-5 w-5 text-brand-500" />}
+            title="Tickets verwalten"
+            subtitle="Alle Tickets ansehen, filtern und bearbeiten"
           />
-          <StatCard
-            icon={<Clock className="h-5 w-5 text-yellow-500" />}
-            label="In Bearbeitung"
-            value={statusCounts.in_progress}
+          <QuickLink
+            href="/dashboard/create"
+            icon={<Plus className="h-5 w-5 text-brand-500" />}
+            title="Ticket erstellen"
+            subtitle="Neues Ticket mit Anhängen anlegen"
           />
-          <StatCard
-            icon={<AlertCircle className="h-5 w-5 text-orange-500" />}
-            label="Wartend"
-            value={statusCounts.waiting}
-          />
-          <StatCard
-            icon={<CheckCircle className="h-5 w-5 text-green-500" />}
-            label="Gelöst"
-            value={statusCounts.resolved}
+          <QuickLink
+            href="/groups"
+            icon={<Users className="h-5 w-5 text-brand-500" />}
+            title="Meine Gruppen"
+            subtitle="Gruppen, Mitarbeiter und Einstellungen"
           />
         </div>
 
-        {/* Header + Actions */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+        {/* My tickets */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Meine Tickets</h2>
           <Link
-            href="/dashboard/create"
-            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+            href="/tickets"
+            className="inline-flex items-center gap-1 text-sm text-brand-500 hover:text-brand-600"
           >
-            <Plus className="h-4 w-4" />
-            Neues Ticket
+            Alle ansehen <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col md:flex-row gap-3 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Tickets durchsuchen..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">Alle Status</option>
-            <option value="open">Offen</option>
-            <option value="in_progress">In Bearbeitung</option>
-            <option value="waiting">Wartend</option>
-            <option value="resolved">Gelöst</option>
-            <option value="closed">Geschlossen</option>
-          </select>
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">Alle Prioritäten</option>
-            <option value="low">Niedrig</option>
-            <option value="medium">Mittel</option>
-            <option value="high">Hoch</option>
-            <option value="urgent">Dringend</option>
-          </select>
-          <select
-            value={`${sortBy}-${sortOrder}`}
-            onChange={(e) => {
-              const [s, o] = e.target.value.split("-");
-              setSortBy(s);
-              setSortOrder(o);
-            }}
-            className="rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="createdAt-desc">Neueste zuerst</option>
-            <option value="createdAt-asc">Älteste zuerst</option>
-            <option value="dueDate-asc">Fälligkeit aufsteigend</option>
-            <option value="dueDate-desc">Fälligkeit absteigend</option>
-            <option value="ticketNumber-desc">Ticket-Nr. absteigend</option>
-          </select>
-        </div>
-
-        {/* Ticket List */}
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
           </div>
-        ) : filteredTickets.length === 0 ? (
+        ) : myTickets.length === 0 ? (
           <div className="text-center py-16 rounded-2xl border border-dashed border-border">
             <Ticket className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Keine Tickets</h3>
+            <h3 className="text-lg font-semibold mb-2">Noch keine eigenen Tickets</h3>
             <p className="text-muted-foreground mb-4">
-              {search
-                ? "Keine Tickets gefunden für diese Suche."
-                : "Noch keine Tickets vorhanden."}
+              Tickets, die du erstellt oder übernommen hast, erscheinen hier.
             </p>
             <Link
-              href="/dashboard/create"
+              href="/tickets"
               className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
             >
-              <Plus className="h-4 w-4" />
-              Erstes Ticket erstellen
+              <Ticket className="h-4 w-4" />
+              Zu den Tickets
             </Link>
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredTickets.map((ticket) => (
+            {myTickets.slice(0, 8).map((ticket) => (
               <Link
                 key={ticket.id}
                 href={`/dashboard/ticket/${ticket.id}`}
@@ -232,11 +171,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                     <h3 className="font-semibold truncate">{ticket.subject}</h3>
-                    <p className="text-sm text-muted-foreground truncate mt-1">
-                      {ticket.description}
-                    </p>
                   </div>
-
                   <div className="flex items-center gap-3 flex-shrink-0">
                     {ticket.dueDate && (
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -265,23 +200,45 @@ export default function DashboardPage() {
 }
 
 function StatCard({
-  icon,
   label,
   value,
+  color,
 }: {
-  icon: React.ReactNode;
   label: string;
   value: number;
+  color: string;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-center gap-3">
-        {icon}
-        <div>
-          <p className="text-2xl font-bold">{value}</p>
-          <p className="text-xs text-muted-foreground">{label}</p>
-        </div>
-      </div>
+      <p className={`text-2xl font-bold ${color}`}>{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
     </div>
+  );
+}
+
+function QuickLink({
+  href,
+  icon,
+  title,
+  subtitle,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 hover:shadow-lg hover:border-brand-500/50 transition-all"
+    >
+      <div className="h-10 w-10 rounded-lg bg-brand-500/10 flex items-center justify-center flex-shrink-0">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+      </div>
+    </Link>
   );
 }

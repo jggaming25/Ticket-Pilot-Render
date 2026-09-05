@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { tickets, categories, users, ticketHistory } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import {
+  tickets,
+  categories,
+  users,
+  ticketHistory,
+  groups,
+  groupMembers,
+  groupSettings,
+  attachments,
+} from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export async function GET(
   req: NextRequest,
@@ -29,6 +38,7 @@ export async function GET(
       robloxUsername: tickets.robloxUsername,
       createdById: tickets.createdById,
       claimedById: tickets.claimedById,
+      groupId: tickets.groupId,
       category: {
         id: categories.id,
         name: categories.name,
@@ -90,8 +100,59 @@ export async function GET(
       .where(eq(ticketHistory.ticketId, params.id as any));
   }
 
+  const attachmentRows = await db
+    .select({
+      id: attachments.id,
+      filename: attachments.filename,
+      mimeType: attachments.mimeType,
+      size: attachments.size,
+      createdAt: attachments.createdAt,
+      uploadedBy: { name: users.name },
+    })
+    .from(attachments)
+    .leftJoin(users, eq(attachments.uploadedById, users.id))
+    .where(eq(attachments.ticketId, params.id as any));
+
+  // Rechte-Info für die UI
+  const mine = (session.user as any).id;
+  const settingsRows = await db
+    .select()
+    .from(groupSettings)
+    .where(eq(groupSettings.groupId, ticket.groupId))
+    .limit(1);
+  const myRoleRows = await db
+    .select({ role: groupMembers.role })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, ticket.groupId),
+        eq(groupMembers.userId, mine)
+      )
+    )
+    .limit(1);
+  const groupOwnerRows = await db
+    .select({ ownerId: groups.ownerId })
+    .from(groups)
+    .where(eq(groups.id, ticket.groupId))
+    .limit(1);
+
+  const myRole = myRoleRows[0]?.role || null;
+  const isOwnerOrAdmin =
+    groupOwnerRows[0]?.ownerId === mine ||
+    myRole === "owner" ||
+    myRole === "admin" ||
+    (session.user as any).role === "admin";
+
   return NextResponse.json({
-    ticket: { ...ticket, createdBy: creatorRows[0], claimedBy: claimer },
+    ticket: {
+      ...ticket,
+      createdBy: creatorRows[0],
+      claimedBy: claimer,
+      attachments: attachmentRows,
+      canCloseTickets: settingsRows[0]?.canCloseTickets !== false,
+      myRole,
+      isOwnerOrAdmin,
+    },
     history,
   });
 }
@@ -122,19 +183,84 @@ export async function PATCH(
     );
   }
 
-  if (ticket.claimedById !== userId && ticket.createdById !== userId) {
+  // Rollen im Kontext der Gruppe ermitteln
+  const myMembership = await db
+    .select({ role: groupMembers.role })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, ticket.groupId),
+        eq(groupMembers.userId, userId)
+      )
+    )
+    .limit(1);
+
+  const groupResult = await db
+    .select({ ownerId: groups.ownerId })
+    .from(groups)
+    .where(eq(groups.id, ticket.groupId))
+    .limit(1);
+  const group = groupResult[0];
+
+  const isOwnerOrAdmin =
+    group?.ownerId === userId ||
+    myMembership[0]?.role === "owner" ||
+    myMembership[0]?.role === "admin" ||
+    (session.user as any).role === "admin";
+  const isAssignee = ticket.claimedById === userId;
+  const isCreator = ticket.createdById === userId;
+
+  if (!isAssignee && !isCreator && !isOwnerOrAdmin) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
+
+  const settingsResult = await db
+    .select()
+    .from(groupSettings)
+    .where(eq(groupSettings.groupId, ticket.groupId))
+    .limit(1);
+  const canCloseTickets = settingsResult[0]?.canCloseTickets !== false;
 
   const updates: Record<string, any> = { updatedAt: new Date() };
 
   if (body.status && body.status !== ticket.status) {
-    updates.status = body.status;
+    const newStatus = body.status as string;
+
+    // Schließen: nur Inhaber/Admins, wenn "Mitarbeiter dürfen schließen" deaktiviert ist
+    if (newStatus === "closed") {
+      if (!canCloseTickets && !isOwnerOrAdmin) {
+        return NextResponse.json(
+          { error: "Nur der Gruppeninhaber kann dieses Ticket schließen" },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Produktivstatus/Gelöst darf nur von Bearbeiter/Inhaber gesetzt werden
+    if (["in_progress", "resolved"].includes(newStatus) && !isAssignee && !isOwnerOrAdmin) {
+      return NextResponse.json(
+        { error: "Nur der Bearbeiter kann diesen Status setzen" },
+        { status: 403 }
+      );
+    }
+
+    updates.status = newStatus;
+
+    const historyAction =
+      newStatus === "ready_to_close"
+        ? "ready_to_close"
+        : newStatus === "closed"
+        ? "closed"
+        : "status_changed";
+
     await db.insert(ticketHistory).values({
       ticketId: params.id,
       userId,
-      action: "status_changed",
-      details: `${ticket.status} → ${body.status}`,
+      action: historyAction,
+      details:
+        historyAction === "status_changed"
+          ? `${ticket.status} → ${newStatus}`
+          : null,
     });
   }
 

@@ -91,6 +91,7 @@
 .status-in-progress { @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200; }
 .status-waiting { @apply bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200; }
 .status-resolved { @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200; }
+.status-ready-to-close { @apply bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200; }
 .status-closed { @apply bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200; }
 
 .priority-low { @apply border-l-green-500; }

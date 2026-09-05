@@ -92,7 +92,7 @@ export default function GroupsPage() {
                   <div>
                     <h3 className="font-semibold">{group.name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {group.memberCount} Mitglieder · {group.ticketCount}{" "}
+                      {group.memberCount} Mitarbeiter · {group.ticketCount}{" "}
                       Tickets · {group.role}
                     </p>
                   </div>

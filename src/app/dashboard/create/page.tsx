@@ -5,8 +5,15 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
-import { ArrowLeft, CalendarDays } from "lucide-react";
+import { ArrowLeft, CalendarDays, Paperclip, X } from "lucide-react";
 import Link from "next/link";
+
+interface PendingFile {
+  name: string;
+  type: string;
+  size: number;
+  data: string;
+}
 
 export default function CreateTicketPage() {
   const { data: session, status } = useSession();
@@ -20,6 +27,8 @@ export default function CreateTicketPage() {
   const [discordUsername, setDiscordUsername] = useState("");
   const [robloxUsername, setRobloxUsername] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [fileError, setFileError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -43,6 +52,36 @@ export default function CreateTicketPage() {
     }
   }, [selectedGroup]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFileError("");
+    const selected = Array.from(e.target.files || []);
+    const MAX = 5 * 1024 * 1024;
+    const oversized = selected.find((f) => f.size > MAX);
+    if (oversized) {
+      setFileError(`"${oversized.name}" ist zu groß (max. 5 MB pro Datei).`);
+      e.target.value = "";
+      return;
+    }
+    if (files.length + selected.length > 5) {
+      setFileError("Maximal 5 Dateien pro Ticket.");
+      e.target.value = "";
+      return;
+    }
+
+    selected.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const data = (reader.result as string).split(",")[1] || "";
+        setFiles((prev) => [
+          ...prev,
+          { name: file.name, type: file.type || "application/octet-stream", size: file.size, data },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -60,6 +99,7 @@ export default function CreateTicketPage() {
           discordUsername: discordUsername || undefined,
           robloxUsername: robloxUsername || undefined,
           dueDate: dueDate || undefined,
+          attachments: files,
         }),
       });
 
@@ -220,6 +260,51 @@ export default function CreateTicketPage() {
                 className="w-full rounded-lg border border-input bg-background pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">
+              Anhänge <span className="text-muted-foreground">(optional, max. 5)</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-input bg-background px-4 py-3 text-sm text-muted-foreground hover:border-brand-500/50 hover:text-foreground transition-colors">
+              <Paperclip className="h-4 w-4" />
+              <span>Dateien auswählen…</span>
+              <input
+                type="file"
+                multiple
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </label>
+            {files.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {files.map((f, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-lg bg-secondary/30 px-3 py-2 text-sm"
+                  >
+                    <span className="truncate">
+                      {f.name}{" "}
+                      <span className="text-xs text-muted-foreground">
+                        ({(f.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFiles((prev) => prev.filter((_, idx) => idx !== i))
+                      }
+                      className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {fileError && (
+              <p className="mt-2 text-sm text-red-500">{fileError}</p>
+            )}
           </div>
 
           <button

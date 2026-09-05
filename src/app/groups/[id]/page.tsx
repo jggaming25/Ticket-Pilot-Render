@@ -188,7 +188,7 @@ export default function GroupDetailPage() {
             }`}
           >
             <Users className="h-4 w-4 inline mr-2" />
-            Mitglieder
+            Mitarbeiter
           </button>
           <button
             onClick={() => setActiveTab("categories")}
@@ -221,7 +221,7 @@ export default function GroupDetailPage() {
                   type="email"
                   value={newMemberEmail}
                   onChange={(e) => setNewMemberEmail(e.target.value)}
-                  placeholder="Email des Mitglieds"
+                  placeholder="Email des Mitarbeiters"
                   required
                   className="flex-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
@@ -260,7 +260,11 @@ export default function GroupDetailPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs px-2 py-1 rounded-full bg-secondary capitalize">
-                      {member.role}
+                      {member.role === "owner"
+                        ? "Inhaber"
+                        : member.role === "admin"
+                        ? "Admin"
+                        : "Mitarbeiter"}
                     </span>
                     {member.user.id !== userId && (isOwner || isAdmin) && (
                       <button
@@ -342,17 +346,17 @@ export default function GroupDetailPage() {
         {activeTab === "settings" && group.settings && (
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
             <SettingToggle
-              label="Mitglieder dürfen Tickets schließen"
+              label="Mitarbeiter dürfen Tickets schließen"
               checked={group.settings.canCloseTickets}
               onChange={(v) => handleUpdateSettings("canCloseTickets", v)}
             />
             <SettingToggle
-              label="Mitglieder dürfen Tickets übernehmen"
+              label="Mitarbeiter dürfen Tickets übernehmen"
               checked={group.settings.canClaimTickets}
               onChange={(v) => handleUpdateSettings("canClaimTickets", v)}
             />
             <SettingToggle
-              label="Mitglieder dürfen kommentieren"
+              label="Mitarbeiter dürfen kommentieren"
               checked={group.settings.canCommentTickets}
               onChange={(v) => handleUpdateSettings("canCommentTickets", v)}
             />

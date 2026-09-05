@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { tickets, ticketHistory } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import {
+  tickets,
+  ticketHistory,
+  groups,
+  groupMembers,
+} from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+import { createNotificationsForMany } from "@/lib/notify";
 
 export async function POST(
   req: NextRequest,
@@ -48,6 +54,31 @@ export async function POST(
     action: "claimed",
   });
 
+  // Benachrichtigungen an Ersteller + Gruppeninhaber/Admins
+  const groupResult = await db
+    .select({ ownerId: groups.ownerId })
+    .from(groups)
+    .where(eq(groups.id, ticket.groupId))
+    .limit(1);
+  const adminRows = await db
+    .select({ userId: groupMembers.userId })
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.groupId, ticket.groupId),
+        eq(groupMembers.role, "admin")
+      )
+    );
+
+  await createNotificationsForMany({
+    userIds: [ticket.createdById, ...(groupResult[0]?.ownerId ? [groupResult[0].ownerId] : []), ...adminRows.map((a) => a.userId)],
+    excludeUserId: userId,
+    ticketId: ticket.id,
+    type: "claim",
+    title: `Ticket TP-${String(ticket.ticketNumber).padStart(4, "0")} übernommen`,
+    message: `${session.user?.name || "Jemand"} hat das Ticket übernommen.`,
+  });
+
   return NextResponse.json({ success: true });
 }
 
@@ -78,14 +109,14 @@ export async function DELETE(
 
   if (ticket.claimedById !== userId) {
     return NextResponse.json(
-      { error: "Nur der Bearbeiter kann das Ticket abgeben" },
+      { error: "Nur der Bearbeiter kann das Ticket freigeben" },
       { status: 403 }
     );
   }
 
   await db
     .update(tickets)
-    .set({ claimedById: null, updatedAt: new Date() })
+    .set({ claimedById: null, status: "open", updatedAt: new Date() })
     .where(eq(tickets.id, params.id as any));
 
   await db.insert(ticketHistory).values({
