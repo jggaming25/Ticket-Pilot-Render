@@ -4,6 +4,7 @@ loadEnv();
 const SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
 const TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID;
 const PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
+const PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY;
 const TO = process.argv[2] || process.env.EMAILJS_TEST_TO || "janngenzmann@gmail.com";
 const BASE = process.env.NEXTAUTH_URL || "https://ticket-pilot-mn25.onrender.com";
 
@@ -17,25 +18,28 @@ const html = `<div style="font-family:sans-serif;max-width:500px;margin:0 auto;p
 
 async function main() {
   console.log(`Sende Testmail an ${TO} ...`);
+  const body = {
+    service_id: SERVICE_ID,
+    template_id: TEMPLATE_ID,
+    user_id: PUBLIC_KEY,
+    template_params: {
+      to_email: TO,
+      subject: "Ticket Pilot - EmailJS Test",
+      html_content: html,
+      verify_url: verifyUrl,
+    },
+  };
+  if (PRIVATE_KEY) body.accessToken = PRIVATE_KEY;
+
   const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      service_id: SERVICE_ID,
-      template_id: TEMPLATE_ID,
-      user_id: PUBLIC_KEY,
-      template_params: {
-        to_email: TO,
-        subject: "Ticket Pilot - EmailJS Test",
-        html_content: html,
-        verify_url: verifyUrl,
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   console.log("Status:", res.status);
-  const body = await res.text().catch(() => "");
-  console.log("Antwort:", body || "(keine)");
+  const respBody = await res.text().catch(() => "");
+  console.log("Antwort:", respBody || "(keine)");
 
   if (res.ok) {
     console.log("SUCCESS: Mail sollte angekommen sein.");

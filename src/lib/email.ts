@@ -21,8 +21,9 @@ function getEmailJS() {
   const serviceId = process.env.EMAILJS_SERVICE_ID;
   const templateId = process.env.EMAILJS_TEMPLATE_ID;
   const publicKey = process.env.EMAILJS_PUBLIC_KEY;
+  const privateKey = process.env.EMAILJS_PRIVATE_KEY;
   if (serviceId && templateId && publicKey) {
-    return { serviceId, templateId, publicKey };
+    return { serviceId, templateId, publicKey, privateKey };
   }
   return null;
 }
@@ -31,30 +32,36 @@ async function sendViaEmailJS(params: {
   serviceId: string;
   templateId: string;
   publicKey: string;
+  privateKey?: string;
   toEmail: string;
   subject: string;
   html: string;
   verifyUrl: string;
 }) {
+  const body: Record<string, unknown> = {
+    service_id: params.serviceId,
+    template_id: params.templateId,
+    user_id: params.publicKey,
+    template_params: {
+      to_email: params.toEmail,
+      subject: params.subject,
+      html_content: params.html,
+      verify_url: params.verifyUrl,
+    },
+  };
+  if (params.privateKey) {
+    body.accessToken = params.privateKey;
+  }
+
   const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      service_id: params.serviceId,
-      template_id: params.templateId,
-      user_id: params.publicKey,
-      template_params: {
-        to_email: params.toEmail,
-        subject: params.subject,
-        html_content: params.html,
-        verify_url: params.verifyUrl,
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`EmailJS ${res.status}: ${body}`);
+    const respBody = await res.text().catch(() => "");
+    throw new Error(`EmailJS ${res.status}: ${respBody}`);
   }
   return true;
 }
@@ -96,6 +103,7 @@ export async function sendVerificationEmail(
         serviceId: emailjs.serviceId,
         templateId: emailjs.templateId,
         publicKey: emailjs.publicKey,
+        privateKey: emailjs.privateKey,
         toEmail: email,
         subject,
         html,
