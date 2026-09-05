@@ -6,26 +6,7 @@ import { users, emailVerifications } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { sendVerificationEmail } from "@/lib/email";
 import { isAdminEmail } from "@/lib/admin";
-
-const BASE_URLS = [
-  process.env.NEXTAUTH_URL,
-  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-].filter(Boolean) as string[];
-
-function getBaseUrl(req: NextRequest): string {
-  const fromReq = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
-  for (const cand of [fromReq, ...BASE_URLS]) {
-    if (cand && /^https?:\/\//.test(cand)) {
-      try {
-        new URL("/", cand);
-        return cand;
-      } catch {
-        // weiter
-      }
-    }
-  }
-  return "http://localhost:3000";
-}
+import { getPublicBaseUrl } from "@/lib/site-url";
 
 export async function POST(req: NextRequest) {
   try {
@@ -80,7 +61,7 @@ export async function POST(req: NextRequest) {
       expires,
     });
 
-    const baseUrl = getBaseUrl(req);
+    const baseUrl = getPublicBaseUrl(req.nextUrl.host);
     const emailResult = await sendVerificationEmail(email, token, "register", baseUrl);
 
     if (!emailResult.success) {

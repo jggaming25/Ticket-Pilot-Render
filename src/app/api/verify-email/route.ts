@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { users, emailVerifications } from "@/lib/db/schema";
 import { eq, and, gt } from "drizzle-orm";
+import { getPublicBaseUrl } from "@/lib/site-url";
 
 export async function GET(req: NextRequest) {
+  const base = getPublicBaseUrl(req.nextUrl.host);
   const token = req.nextUrl.searchParams.get("token");
   const type = req.nextUrl.searchParams.get("type");
 
   if (!token || !type) {
     return NextResponse.redirect(
-      new URL("/login?error=Ungültiger Link", req.url)
+      new URL(`/login?error=${encodeURIComponent("Ungültiger Link")}`, base)
     );
   }
 
@@ -29,7 +31,10 @@ export async function GET(req: NextRequest) {
 
   if (!verification) {
     return NextResponse.redirect(
-      new URL("/login?error=Link abgelaufen oder ungültig", req.url)
+      new URL(
+        `/login?error=${encodeURIComponent("Link abgelaufen oder ungültig")}`,
+        base
+      )
     );
   }
 
@@ -46,8 +51,8 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.redirect(
     new URL(
-      "/login?success=Email bestätigt! Du kannst dich jetzt einloggen.",
-      req.url
+      `/login?success=${encodeURIComponent("Email bestätigt! Du kannst dich jetzt einloggen.")}`,
+      base
     )
   );
 }
