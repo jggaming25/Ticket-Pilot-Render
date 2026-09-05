@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "./db/schema";
 import { eq } from "drizzle-orm";
+import { isAdminEmail } from "./admin";
+import { isBanActive } from "./utils";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -44,6 +46,8 @@ export const authOptions: NextAuthOptions = {
         );
         if (!isValid) return null;
 
+        if (isBanActive(user.banned, user.bannedUntil)) return null;
+
         if (!user.emailVerified) return null;
 
         return {
@@ -51,6 +55,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           email: user.email,
           image: user.image,
+          role: user.role || (isAdminEmail(user.email) ? "admin" : "user"),
         };
       },
     }),
@@ -59,12 +64,37 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.role = (user as any).role || "user";
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id;
+        (session.user as any).role = token.role || "user";
+
+        // Live-Status (Bann/Löschung) aus der DB laden
+        try {
+          const result = await db
+            .select({
+              banned: users.banned,
+              banReason: users.banReason,
+              bannedUntil: users.bannedUntil,
+              deleteAt: users.deleteAt,
+            })
+            .from(users)
+            .where(eq(users.id, token.id as string))
+            .limit(1);
+          const live = result[0];
+          if (live) {
+            (session.user as any).banned = live.banned || false;
+            (session.user as any).banReason = live.banReason;
+            (session.user as any).bannedUntil = live.bannedUntil;
+            (session.user as any).deleteAt = live.deleteAt;
+          }
+        } catch {
+          // DB nicht erreichbar -> nicht blockieren
+        }
       }
       return session;
     },

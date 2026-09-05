@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { ThemeToggle } from "./ThemeToggle";
-import { Ticket, LogOut, Settings, LayoutDashboard, Users } from "lucide-react";
+import { Ticket, LogOut, Settings, LayoutDashboard, Users, Shield } from "lucide-react";
 import { useState } from "react";
 
 export function TopBar() {
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const isAdmin = (session?.user as any)?.role === "admin";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-lg">
@@ -78,6 +79,16 @@ export function TopBar() {
                       <Settings className="h-4 w-4" />
                       Einstellungen
                     </Link>
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                      >
+                        <Shield className="h-4 w-4" />
+                        Admin-Dashboard
+                      </Link>
+                    )}
                     <hr className="my-1 border-border" />
                     <button
                       onClick={() => {

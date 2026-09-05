@@ -41,7 +41,11 @@ export default function RegisterPage() {
         setError(data.error || "Ein Fehler ist aufgetreten");
       } else {
         setSuccess(data.message);
-        setTimeout(() => router.push("/login"), 3000);
+        if (data.emailFailed) {
+          setTimeout(() => router.push("/login"), 8000);
+        } else {
+          setTimeout(() => router.push("/login"), 3000);
+        }
       }
     } catch {
       setError("Ein Fehler ist aufgetreten");

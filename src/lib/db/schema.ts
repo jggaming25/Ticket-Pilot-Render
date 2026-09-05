@@ -16,10 +16,28 @@ export const users = sqliteTable("users", {
   loginVerificationEnabled: integer("login_verification_enabled", {
     mode: "boolean",
   }).default(false),
+  role: text("role", { enum: ["user", "admin"] }).default("user"),
+  banned: integer("banned", { mode: "boolean" }).default(false),
+  banReason: text("ban_reason"),
+  bannedUntil: integer("banned_until", { mode: "timestamp" }),
+  deleteAt: integer("delete_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const siteAnnouncements = sqliteTable("site_announcements", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  message: text("message").notNull(),
+  color: text("color").notNull().default("#ef4444"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdById: text("created_by_id").references(() => users.id),
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -236,6 +254,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   claimedTickets: many(tickets, { relationName: "claimedTickets" }),
   comments: many(ticketComments),
   history: many(ticketHistory),
+  announcements: many(siteAnnouncements),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -319,3 +338,13 @@ export const ticketHistoryRelations = relations(ticketHistory, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const siteAnnouncementsRelations = relations(
+  siteAnnouncements,
+  ({ one }) => ({
+    createdBy: one(users, {
+      fields: [siteAnnouncements.createdById],
+      references: [users.id],
+    }),
+  })
+);

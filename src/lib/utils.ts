@@ -66,3 +66,17 @@ export function getStatusColor(status: string): string {
   };
   return colors[status] || "";
 }
+
+export function isBanActive(
+  banned?: boolean | null,
+  bannedUntil?: Date | string | null
+): boolean {
+  if (!banned) return false;
+  if (!bannedUntil) return true;
+  return new Date(bannedUntil).getTime() > Date.now();
+}
+
+export function hasDeleteAtPassed(deleteAt?: Date | string | null): boolean {
+  if (!deleteAt) return false;
+  return new Date(deleteAt).getTime() <= Date.now();
+}

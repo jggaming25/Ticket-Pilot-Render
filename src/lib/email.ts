@@ -20,9 +20,10 @@ function getResend() {
 export async function sendVerificationEmail(
   email: string,
   token: string,
-  type: "register" | "login"
+  type: "register" | "login",
+  baseUrlOverride?: string
 ) {
-  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const baseUrl = baseUrlOverride || process.env.NEXTAUTH_URL || "http://localhost:3000";
   const verifyUrl = `${baseUrl}/verify-email?token=${token}&type=${type}`;
 
   const subject =

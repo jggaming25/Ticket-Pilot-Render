@@ -3,6 +3,11 @@ export interface SessionUser {
   name?: string | null;
   email?: string | null;
   image?: string | null;
+  role?: string | null;
+  banned?: boolean | null;
+  banReason?: string | null;
+  bannedUntil?: Date | null;
+  deleteAt?: Date | null;
 }
 
 export interface TicketWithRelations {
