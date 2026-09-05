@@ -17,6 +17,48 @@ function getResend() {
   }
 }
 
+function getEmailJS() {
+  const serviceId = process.env.EMAILJS_SERVICE_ID;
+  const templateId = process.env.EMAILJS_TEMPLATE_ID;
+  const publicKey = process.env.EMAILJS_PUBLIC_KEY;
+  if (serviceId && templateId && publicKey) {
+    return { serviceId, templateId, publicKey };
+  }
+  return null;
+}
+
+async function sendViaEmailJS(params: {
+  serviceId: string;
+  templateId: string;
+  publicKey: string;
+  toEmail: string;
+  subject: string;
+  html: string;
+  verifyUrl: string;
+}) {
+  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id: params.serviceId,
+      template_id: params.templateId,
+      user_id: params.publicKey,
+      template_params: {
+        to_email: params.toEmail,
+        subject: params.subject,
+        html_content: params.html,
+        verify_url: params.verifyUrl,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`EmailJS ${res.status}: ${body}`);
+  }
+  return true;
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,
@@ -46,19 +88,42 @@ export async function sendVerificationEmail(
           <p style="color: #666; font-size: 14px;">Falls du das nicht warst, ändere sofort dein Passwort.</p>
         </div>`;
 
+  // 1. Bevorzugt: EmailJS (funktioniert ohne eigene Domain)
+  const emailjs = getEmailJS();
+  if (emailjs) {
+    try {
+      await sendViaEmailJS({
+        serviceId: emailjs.serviceId,
+        templateId: emailjs.templateId,
+        publicKey: emailjs.publicKey,
+        toEmail: email,
+        subject,
+        html,
+        verifyUrl,
+      });
+      return { success: true, provider: "emailjs" };
+    } catch (error) {
+      console.error("EmailJS send error:", error);
+      return { success: false, error };
+    }
+  }
+
+  // 2. Fallback: Resend (benoetigt verifizierte Domain fuer Empfaenger)
   try {
     const resend = getResend();
     if (!resend) {
-      console.warn("Resend not configured - skipping email");
+      console.warn("Kein Email-Anbieter konfiguriert - Email wird uebersprungen");
       return { success: true, skipped: true };
     }
     await resend.emails.send({
-      from: process.env.EMAIL_FROM || "Ticket Pilot <onboarding@resend.dev>",
+      from:
+        process.env.EMAIL_FROM ||
+        "Ticket Pilot <onboarding@resend.dev>",
       to: email,
       subject,
       html,
     });
-    return { success: true };
+    return { success: true, provider: "resend" };
   } catch (error) {
     console.error("Email send error:", error);
     return { success: false, error };
