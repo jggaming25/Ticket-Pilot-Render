@@ -57,18 +57,7 @@ function playClick() {
   }
 }
 
-export function initClickSound() {
-  if (typeof window === "undefined") return;
-
-  // Event-Delegation: ein einziger Listener deckt alle Buttons/Links ab
-  document.addEventListener(
-    "pointerdown",
-    (e) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      const el = target.closest("button, a, select, [role='button']");
-      if (el) playClick();
-    },
-    true
-  );
+// Nur beim Wechseln über die Tableiste (TopBar-Tabs) abspielen
+export function playTabClick() {
+  playClick();
 }

@@ -8,7 +8,6 @@ import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
 import { formatDate, getStatusLabel, getPriorityLabel, getStatusColor } from "@/lib/utils";
 import {
-  Plus,
   Search,
   Ticket,
   Clock,
@@ -165,13 +164,6 @@ function TicketsPageInner() {
                 Einstellungen
               </Link>
             )}
-            <Link
-              href={`/dashboard/create${groupId ? `?groupId=${groupId}` : ""}`}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Ticket erstellen
-            </Link>
           </div>
         </div>
 
@@ -250,13 +242,9 @@ function TicketsPageInner() {
                 ? "Keine Tickets gefunden für diese Suche."
                 : "Noch keine Tickets vorhanden."}
             </p>
-            <Link
-              href="/dashboard/create"
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-            >
-              <Plus className="h-4 w-4" />
-              Erstes Ticket erstellen
-            </Link>
+            <p className="text-sm text-muted-foreground">
+              Neue Tickets werden über „Meine Tickets" erstellt.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">

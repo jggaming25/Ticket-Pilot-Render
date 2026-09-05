@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { ThemeToggle } from "./ThemeToggle";
+import { AnnouncementBar } from "./AnnouncementBar";
+import { playTabClick } from "@/lib/clickSound";
 import {
   Ticket,
   LogOut,
@@ -88,7 +90,8 @@ export function TopBar() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-lg">
+    <>
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-lg">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-bold text-xl">
@@ -278,6 +281,7 @@ export function TopBar() {
                 <Link
                   key={tab.href}
                   href={tab.href}
+                  onClick={playTabClick}
                   className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     active
                       ? "text-brand-500 border-brand-500"
@@ -293,5 +297,7 @@ export function TopBar() {
         )}
       </div>
     </header>
+      <AnnouncementBar />
+    </>
   );
 }
