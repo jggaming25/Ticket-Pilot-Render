@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "email:test": "node scripts/test-email.cjs"
+    "email:test": "node scripts/test-email.cjs",
+    "reset:password": "node scripts/reset-password.cjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
