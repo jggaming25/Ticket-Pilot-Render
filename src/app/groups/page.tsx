@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
-import { Users, Plus, Settings, ChevronRight } from "lucide-react";
+import { Users, Plus, LayoutDashboard } from "lucide-react";
 
 interface GroupData {
   id: string;
@@ -80,25 +80,33 @@ export default function GroupsPage() {
         ) : (
           <div className="grid gap-4">
             {groups.map((group) => (
-              <Link
+              <div
                 key={group.id}
-                href={`/groups/${group.id}`}
-                className="group flex items-center justify-between rounded-xl border border-border bg-card p-5 hover:shadow-lg hover:border-brand-500/50 transition-all"
+                className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-5 hover:shadow-lg hover:border-brand-500/50 transition-all"
               >
-                <div className="flex items-center gap-4">
+                <Link
+                  href={`/groups/${group.id}`}
+                  className="flex items-center gap-4 flex-1 min-w-0"
+                >
                   <div className="h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
                     <Users className="h-6 w-6 text-brand-500" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="font-semibold">{group.name}</h3>
                     <p className="text-sm text-muted-foreground">
                       {group.memberCount} Mitarbeiter · {group.ticketCount}{" "}
                       Tickets · {group.role}
                     </p>
                   </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-brand-500 transition-colors" />
-              </Link>
+                </Link>
+                <Link
+                  href={`/tickets?groupId=${group.id}`}
+                  className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  Bearbeiter-Dashboard
+                </Link>
+              </div>
             ))}
           </div>
         )}

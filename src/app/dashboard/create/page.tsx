@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
 import { ArrowLeft, CalendarDays, Paperclip, X } from "lucide-react";
@@ -16,11 +16,22 @@ interface PendingFile {
 }
 
 export default function CreateTicketPage() {
+  return (
+    <Suspense fallback={null}>
+      <CreateTicketPageInner />
+    </Suspense>
+  );
+}
+
+function CreateTicketPageInner() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [groups, setGroups] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState(
+    searchParams.get("groupId") || ""
+  );
   const [selectedCategory, setSelectedCategory] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
@@ -129,11 +140,11 @@ export default function CreateTicketPage() {
       <TopBar />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-2xl">
         <Link
-          href="/dashboard"
+          href="/meine-tickets"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
         >
           <ArrowLeft className="h-4 w-4" />
-          Zurück zum Dashboard
+          Zurück zu Meine Tickets
         </Link>
 
         <h1 className="text-2xl font-bold mb-6">Neues Ticket erstellen</h1>

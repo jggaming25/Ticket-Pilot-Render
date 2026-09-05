@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
@@ -28,26 +28,13 @@ interface TicketData {
   claimedBy: { name: string; image: string | null } | null;
 }
 
-export default function TicketsPage() {
-  return (
-    <Suspense fallback={null}>
-      <TicketsPageInner />
-    </Suspense>
-  );
-}
-
-function TicketsPageInner() {
+export default function MyTicketsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const groupId = searchParams.get("groupId") || "";
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState("desc");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -58,17 +45,12 @@ function TicketsPageInner() {
       fetchTickets();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, statusFilter, priorityFilter, sortBy, sortOrder, groupId]);
+  }, [session, statusFilter]);
 
   const fetchTickets = async () => {
     setLoading(true);
-    const params = new URLSearchParams({
-      status: statusFilter,
-      priority: priorityFilter,
-      sortBy,
-      sortOrder,
-    });
-    if (groupId) params.set("groupId", groupId);
+    const params = new URLSearchParams({ mine: "true", sortBy: "createdAt", sortOrder: "desc" });
+    if (statusFilter !== "all") params.set("status", statusFilter);
     const res = await fetch(`/api/tickets?${params}`);
     if (res.ok) {
       const data = await res.json();
@@ -89,6 +71,7 @@ function TicketsPageInner() {
     waiting: tickets.filter((t) => t.status === "waiting").length,
     resolved: tickets.filter((t) => t.status === "resolved").length,
     ready_to_close: tickets.filter((t) => t.status === "ready_to_close").length,
+    closed: tickets.filter((t) => t.status === "closed").length,
   };
 
   if (status === "loading") {
@@ -105,40 +88,27 @@ function TicketsPageInner() {
       <main className="flex-1 container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold">
-              {groupId ? "Bearbeiter-Dashboard" : "Tickets"}
-            </h1>
+            <h1 className="text-2xl font-bold">Meine Tickets</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {groupId
-                ? "Alle Tickets dieser Gruppe verwalten"
-                : "Alle Tickets aus deinen Gruppen verwalten"}
+              Übersicht über deine selbst erstellten Tickets
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            {groupId && (
-              <Link
-                href="/groups"
-                className="inline-flex items-center rounded-lg bg-secondary/50 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary transition-colors"
-              >
-                Zu meinen Gruppen
-              </Link>
-            )}
-            <Link
-              href={`/dashboard/create${groupId ? `?groupId=${groupId}` : ""}`}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Ticket erstellen
-            </Link>
-          </div>
+          <Link
+            href="/dashboard/create"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Ticket erstellen
+          </Link>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           <MiniStat label="Offen" value={statusCounts.open} color="text-blue-500" />
           <MiniStat label="In Bearbeitung" value={statusCounts.in_progress} color="text-yellow-500" />
           <MiniStat label="Wartend" value={statusCounts.waiting} color="text-orange-500" />
           <MiniStat label="Gelöst" value={statusCounts.resolved} color="text-green-500" />
           <MiniStat label="Zu schließen" value={statusCounts.ready_to_close} color="text-cyan-500" />
+          <MiniStat label="Geschlossen" value={statusCounts.closed} color="text-muted-foreground" />
         </div>
 
         {/* Filters */}
@@ -166,32 +136,6 @@ function TicketsPageInner() {
             <option value="ready_to_close">Zum Schließen freigegeben</option>
             <option value="closed">Geschlossen</option>
           </select>
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="all">Alle Prioritäten</option>
-            <option value="low">Niedrig</option>
-            <option value="medium">Mittel</option>
-            <option value="high">Hoch</option>
-            <option value="urgent">Dringend</option>
-          </select>
-          <select
-            value={`${sortBy}-${sortOrder}`}
-            onChange={(e) => {
-              const [s, o] = e.target.value.split("-");
-              setSortBy(s);
-              setSortOrder(o);
-            }}
-            className="rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="createdAt-desc">Neueste zuerst</option>
-            <option value="createdAt-asc">Älteste zuerst</option>
-            <option value="dueDate-asc">Fälligkeit aufsteigend</option>
-            <option value="dueDate-desc">Fälligkeit absteigend</option>
-            <option value="ticketNumber-desc">Ticket-Nr. absteigend</option>
-          </select>
         </div>
 
         {/* Ticket List */}
@@ -202,11 +146,10 @@ function TicketsPageInner() {
         ) : filteredTickets.length === 0 ? (
           <div className="text-center py-16 rounded-2xl border border-dashed border-border">
             <Ticket className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Keine Tickets</h3>
+            <h3 className="text-lg font-semibold mb-2">Noch keine Tickets</h3>
             <p className="text-muted-foreground mb-4">
-              {search
-                ? "Keine Tickets gefunden für diese Suche."
-                : "Noch keine Tickets vorhanden."}
+              Hier erscheinen alle Tickets, die du erstellt hast. Erstelle dein
+              erstes Ticket, um Unterstützung anzufragen.
             </p>
             <Link
               href="/dashboard/create"

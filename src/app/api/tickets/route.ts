@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   const sortBy = searchParams.get("sortBy") || "createdAt";
   const sortOrder = searchParams.get("sortOrder") || "desc";
   const groupId = searchParams.get("groupId");
+  const mineOnly = searchParams.get("mine") === "true";
 
   const userGroups = await db
     .select({ groupId: groupMembers.groupId })
@@ -61,6 +62,9 @@ export async function GET(req: NextRequest) {
   }
   if (groupId) {
     conditions.push(eq(tickets.groupId, groupId as any));
+  }
+  if (mineOnly) {
+    conditions.push(eq(tickets.createdById, userId));
   }
 
   const result = await db

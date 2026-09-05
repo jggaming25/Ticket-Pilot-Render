@@ -8,11 +8,9 @@ import {
   Ticket,
   LogOut,
   Settings,
-  LayoutDashboard,
   Users,
   Shield,
   Bell,
-  Plus,
   Inbox,
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -76,10 +74,8 @@ export function TopBar() {
   };
 
   const tabs = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/tickets", label: "Tickets", icon: Ticket },
-    { href: "/groups", label: "Meine Gruppen", icon: Users },
-    { href: "/dashboard/create", label: "Ticket erstellen", icon: Plus },
+    { href: "/groups", label: "Gruppen", icon: Users },
+    { href: "/meine-tickets", label: "Meine Tickets", icon: Ticket },
   ];
 
   return (
@@ -146,7 +142,7 @@ export function TopBar() {
                                 href={
                                   n.ticketId
                                     ? `/dashboard/ticket/${n.ticketId}`
-                                    : "/dashboard"
+                                    : "/meine-tickets"
                                 }
                                 onClick={() => setNotifOpen(false)}
                                 className={`block rounded-lg px-3 py-2 hover:bg-secondary transition-colors ${
@@ -262,19 +258,8 @@ export function TopBar() {
         {session && (
           <nav className="flex gap-1 overflow-x-auto -mb-px">
             {tabs.map((tab) => {
-              const inTicketDetail = pathname.startsWith("/dashboard/ticket/");
-              let active: boolean;
-              if (tab.href === "/tickets") {
-                active = pathname === "/tickets" || inTicketDetail;
-              } else if (tab.href === "/dashboard") {
-                active =
-                  pathname === "/dashboard" ||
-                  (pathname.startsWith("/dashboard/") && !inTicketDetail);
-              } else {
-                active =
-                  pathname === tab.href ||
-                  pathname.startsWith(tab.href + "/");
-              }
+              const active =
+                pathname === tab.href || pathname.startsWith(tab.href + "/");
               return (
                 <Link
                   key={tab.href}

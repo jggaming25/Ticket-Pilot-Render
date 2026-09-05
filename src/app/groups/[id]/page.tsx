@@ -171,12 +171,19 @@ export default function GroupDetailPage() {
           <div className="h-14 w-14 rounded-xl bg-brand-500/10 flex items-center justify-center">
             <Users className="h-7 w-7 text-brand-500" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold">{group.name}</h1>
             {group.description && (
               <p className="text-muted-foreground">{group.description}</p>
             )}
           </div>
+          <Link
+            href={`/tickets?groupId=${group.id}`}
+            className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Bearbeiter-Dashboard
+          </Link>
         </div>
 
         {/* Tabs */}
