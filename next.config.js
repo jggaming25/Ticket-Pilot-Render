@@ -6,9 +6,6 @@ const nextConfig = {
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
     ],
   },
-  experimental: {
-    serverExternalPackages: ["@libsql/client", "libsql"],
-  },
 };
 
 module.exports = nextConfig;
