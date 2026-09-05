@@ -13,7 +13,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "pg": "^8.13.0",
+    "@libsql/client": "^0.18.0",
     "ably": "^2.0.0",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.0",
@@ -23,6 +23,7 @@
     "next": "^14.2.0",
     "next-auth": "^4.24.0",
     "next-themes": "^0.3.0",
+    "pg": "^8.13.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "resend": "^4.0.0",
@@ -30,8 +31,8 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/pg": "^8.11.10",
     "@types/node": "^20.12.0",
+    "@types/pg": "^8.11.10",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.0",
