@@ -8,12 +8,12 @@ import { Footer } from "@/components/Footer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   User,
-  Mail,
   Lock,
-  Gamepad2,
   Save,
   Shield,
+  Volume2,
 } from "lucide-react";
+import { setSoundEnabled as setGlobalSoundEnabled } from "@/lib/clickSound";
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [login2FA, setLogin2FA] = useState(false);
+  const [soundEnabled, setSoundEnabledState] = useState(true);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -43,10 +44,22 @@ export default function SettingsPage() {
             setDiscordUsername(d.user.discordUsername || "");
             setRobloxUsername(d.user.robloxUsername || "");
             setLogin2FA(d.user.loginVerificationEnabled || false);
+            setSoundEnabledState(d.user.soundEnabled !== false);
           }
         });
     }
   }, [session]);
+
+  const handleToggleSound = async () => {
+    const nextValue = !soundEnabled;
+    setSoundEnabledState(nextValue);
+    setGlobalSoundEnabled(nextValue);
+    await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ soundEnabled: nextValue }),
+    });
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,6 +159,29 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
             <span className="text-sm">Dark / Light Mode</span>
             <ThemeToggle />
+          </div>
+          <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 mt-3">
+            <div className="flex items-center gap-2">
+              <Volume2 className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Klick-Sounds</p>
+                <p className="text-xs text-muted-foreground">
+                  Kleiner Soundeffekt beim Klicken
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleToggleSound}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                soundEnabled ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-600"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  soundEnabled ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
           </div>
         </section>
 

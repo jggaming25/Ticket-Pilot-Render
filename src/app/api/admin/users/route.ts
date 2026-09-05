@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-guard";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { eq, and, lte } from "drizzle-orm";
+import { eq, and, lte, ne } from "drizzle-orm";
 import { desc } from "drizzle-orm";
 import { isBanActive } from "@/lib/utils";
+import bcrypt from "bcryptjs";
 
 export async function GET() {
   const { error } = await requireAdmin();
@@ -39,6 +40,7 @@ export async function GET() {
         bannedUntil: users.bannedUntil,
         deleteAt: users.deleteAt,
         createdAt: users.createdAt,
+        passwordSet: ne(users.passwordHash, ""),
       })
       .from(users)
       .orderBy(desc(users.createdAt));
@@ -130,6 +132,21 @@ export async function POST(req: NextRequest) {
         await db
           .update(users)
           .set({ deleteAt: null })
+          .where(eq(users.id, id));
+        return NextResponse.json({ success: true });
+      }
+      case "set-password": {
+        const password = typeof body.password === "string" ? body.password : "";
+        if (password.length < 8) {
+          return NextResponse.json(
+            { error: "Das Passwort muss mindestens 8 Zeichen lang sein." },
+            { status: 400 }
+          );
+        }
+        const passwordHash = await bcrypt.hash(password, 10);
+        await db
+          .update(users)
+          .set({ passwordHash, emailVerified: new Date() })
           .where(eq(users.id, id));
         return NextResponse.json({ success: true });
       }

@@ -10,32 +10,31 @@ export default function ImprintPage() {
 
         <div className="prose dark:prose-invert max-w-none space-y-6">
           <section>
-            <h2 className="text-xl font-semibold mb-3">Angaben gemäß § 5 TMG</h2>
+            <h2 className="text-xl font-semibold mb-3">Angaben gemäß § 5 DDG</h2>
             <p className="text-muted-foreground">
               Ticket Pilot<br />
-              [Dein Name / Firmenname]<br />
-              [Straße und Hausnummer]<br />
-              [PLZ und Ort]<br />
-              [Land]
+              Jann Genzmann<br />
+              Am Schraderhof 44<br />
+              39116 Magdeburg<br />
+              Deutschland
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold mb-3">Kontakt</h2>
             <p className="text-muted-foreground">
-              E-Mail: [deine@email.de]<br />
-              Telefon: [optional]
+              E-Mail: j.genzmann@md-netz.de
             </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold mb-3">
-              Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV
+              Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV
             </h2>
             <p className="text-muted-foreground">
-              [Dein Name]<br />
-              [Straße und Hausnummer]<br />
-              [PLZ und Ort]
+              Jann Genzmann<br />
+              Am Schraderhof 44<br />
+              39116 Magdeburg
             </p>
           </section>
 
@@ -61,9 +60,9 @@ export default function ImprintPage() {
           <section>
             <h2 className="text-xl font-semibold mb-3">Haftung für Inhalte</h2>
             <p className="text-muted-foreground">
-              Als Diensteanbieter sind wir gemäß § 7 Abs. 1 TMG für eigene
+              Als Diensteanbieter sind wir gemäß § 7 Abs. 1 DDG für eigene
               Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich.
-              Nach §§ 8 bis 10 TMG sind wir als Diensteanbieter jedoch nicht
+              Nach §§ 8 bis 10 DDG sind wir als Diensteanbieter jedoch nicht
               unter der Verpflichtung, übermittelte oder gespeicherte fremde
               Informationen zu überwachen oder nach Umständen zu forschen, die auf
               eine rechtswidrige Tätigkeit hinweisen.

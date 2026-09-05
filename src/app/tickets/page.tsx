@@ -12,6 +12,7 @@ import {
   Search,
   Ticket,
   Clock,
+  Settings,
 } from "lucide-react";
 
 interface TicketData {
@@ -42,6 +43,11 @@ function TicketsPageInner() {
   const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId") || "";
   const [tickets, setTickets] = useState<TicketData[]>([]);
+  const [groupInfo, setGroupInfo] = useState<{
+    name: string;
+    canManageSettings: boolean;
+  } | null>(null);
+  const [loadingGroup, setLoadingGroup] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -59,6 +65,33 @@ function TicketsPageInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, statusFilter, priorityFilter, sortBy, sortOrder, groupId]);
+
+  useEffect(() => {
+    if (!groupId) {
+      setGroupInfo(null);
+      setLoadingGroup(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingGroup(true);
+    fetch(`/api/groups?all=true`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        const g = (d.groups || []).find((x: any) => x.id === groupId);
+        if (g) {
+          setGroupInfo({
+            name: g.name,
+            canManageSettings: !!g.canManageSettings,
+          });
+        }
+        setLoadingGroup(false);
+      })
+      .catch(() => setLoadingGroup(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId]);
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -106,11 +139,11 @@ function TicketsPageInner() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">
-              {groupId ? "Bearbeiter-Dashboard" : "Tickets"}
+              {groupInfo?.name || (groupId ? "Bearbeiter-Dashboard" : "Tickets")}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               {groupId
-                ? "Alle Tickets dieser Gruppe verwalten"
+                ? `Alle Tickets dieser Gruppe verwalten${loadingGroup ? "..." : ""}`
                 : "Alle Tickets aus deinen Gruppen verwalten"}
             </p>
           </div>
@@ -121,6 +154,15 @@ function TicketsPageInner() {
                 className="inline-flex items-center rounded-lg bg-secondary/50 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary transition-colors"
               >
                 Zu meinen Gruppen
+              </Link>
+            )}
+            {groupId && groupInfo?.canManageSettings && (
+              <Link
+                href={`/groups/${groupId}`}
+                className="inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                <Settings className="h-4 w-4" />
+                Einstellungen
               </Link>
             )}
             <Link

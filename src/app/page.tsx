@@ -44,7 +44,7 @@ export default function HomePage() {
 
               {session ? (
                 <Link
-                  href="/dashboard"
+                  href="/groups"
                   className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-4 text-lg font-semibold text-brand-700 hover:bg-white/90 transition-all hover:scale-105 shadow-xl"
                 >
                   Zum Dashboard
@@ -131,12 +131,12 @@ export default function HomePage() {
                 Pilot.
               </p>
               <Link
-                href={session ? "/dashboard" : "/register"}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-4 text-lg font-semibold text-brand-700 hover:bg-white/90 transition-all hover:scale-105 shadow-xl"
-              >
-                {session ? "Zum Dashboard" : "Kostenlos starten"}
-                <ArrowRight className="h-5 w-5" />
-              </Link>
+href={session ? "/groups" : "/register"}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-4 text-lg font-semibold text-brand-700 hover:bg-white/90 transition-all hover:scale-105 shadow-xl"
+                >
+                  {session ? "Loslegen" : "Starte durch mit Ticket Pilot"}
+                  <ArrowRight className="h-5 w-5" />
+                </Link>
             </div>
           </div>
         </section>

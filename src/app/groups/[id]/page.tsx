@@ -15,7 +15,15 @@ import {
   Shield,
   Tag,
   UserPlus,
+  KeyRound,
 } from "lucide-react";
+
+const PRIORITY_LABELS: Record<string, string> = {
+  low: "Niedrig",
+  medium: "Mittel",
+  high: "Hoch",
+  urgent: "Dringend",
+};
 
 interface GroupData {
   id: string;
@@ -26,6 +34,7 @@ interface GroupData {
   members: Array<{
     id: string;
     role: string;
+    canManageSettings: boolean;
     user: { id: string; name: string; email: string; image: string | null };
   }>;
   settings: {
@@ -33,8 +42,14 @@ interface GroupData {
     canClaimTickets: boolean;
     canCommentTickets: boolean;
     requireEmailVerification: boolean;
+    nextActions: string | null;
   } | null;
-  categories: Array<{ id: string; name: string; color: string | null }>;
+  categories: Array<{
+    id: string;
+    name: string;
+    color: string | null;
+    priority: string | null;
+  }>;
 }
 
 export default function GroupDetailPage() {
@@ -49,6 +64,8 @@ export default function GroupDetailPage() {
   const [newMemberEmail, setNewMemberEmail] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState("#6366f1");
+  const [newCategoryPriority, setNewCategoryPriority] = useState("medium");
+  const [nextActionsText, setNextActionsText] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [categoryError, setCategoryError] = useState("");
 
@@ -58,6 +75,7 @@ export default function GroupDetailPage() {
 
   useEffect(() => {
     if (session && groupId) fetchGroup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, groupId]);
 
   const fetchGroup = async () => {
@@ -65,6 +83,14 @@ export default function GroupDetailPage() {
     if (res.ok) {
       const data = await res.json();
       setGroup(data.group);
+      try {
+        const parsed = JSON.parse(data.group?.settings?.nextActions || "[]");
+        setNextActionsText(
+          Array.isArray(parsed) ? parsed.join("\n") : ""
+        );
+      } catch {
+        setNextActionsText("");
+      }
     }
     setLoading(false);
   };
@@ -95,6 +121,31 @@ export default function GroupDetailPage() {
     fetchGroup();
   };
 
+  const handleToggleManageSettings = async (
+    memberId: string,
+    canManageSettings: boolean
+  ) => {
+    const res = await fetch(`/api/groups/${groupId}/members`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, canManageSettings }),
+    });
+    if (res.ok) fetchGroup();
+  };
+
+  const handleSaveNextActions = async () => {
+    const list = nextActionsText
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    await fetch(`/api/groups/${groupId}/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nextActions: JSON.stringify(list) }),
+    });
+    fetchGroup();
+  };
+
   const handleUpdateSettings = async (key: string, value: boolean) => {
     await fetch(`/api/groups/${groupId}/settings`, {
       method: "PATCH",
@@ -110,13 +161,18 @@ export default function GroupDetailPage() {
     const res = await fetch(`/api/groups/${groupId}/categories`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newCategoryName, color: newCategoryColor }),
+      body: JSON.stringify({
+        name: newCategoryName,
+        color: newCategoryColor,
+        priority: newCategoryPriority,
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
       setCategoryError(data.error);
     } else {
       setNewCategoryName("");
+      setNewCategoryPriority("medium");
       fetchGroup();
     }
   };
@@ -132,9 +188,12 @@ export default function GroupDetailPage() {
 
   const userId = (session?.user as any)?.id;
   const isOwner = group?.ownerId === userId;
+  const myMembership = group?.members?.find((m) => m.user.id === userId);
   const isAdmin =
-    group?.members?.some((m) => m.user.id === userId && m.role === "owner") ||
-    group?.members?.some((m) => m.user.id === userId && m.role === "admin");
+    myMembership?.role === "owner" ||
+    myMembership?.role === "admin";
+  // Berechtigt sind Inhaber, Admins und per Toggle freigeschaltete Mitglieder
+  const canManage = isOwner || isAdmin || !!myMembership?.canManageSettings;
 
   if (loading) {
     return (
@@ -160,11 +219,11 @@ export default function GroupDetailPage() {
       <TopBar />
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
         <Link
-          href="/groups"
+          href={`/tickets?groupId=${group.id}`}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6"
         >
           <ArrowLeft className="h-4 w-4" />
-          Zurück zu Gruppen
+          Zurück zum Bearbeiter-Dashboard
         </Link>
 
         <div className="flex items-center gap-4 mb-8">
@@ -206,7 +265,7 @@ export default function GroupDetailPage() {
             <Tag className="h-4 w-4 inline mr-2" />
             Kategorien
           </button>
-          {(isOwner || isAdmin) && (
+          {canManage && (
             <button
               onClick={() => setActiveTab("settings")}
               className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
@@ -265,7 +324,38 @@ export default function GroupDetailPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3 flex-wrap justify-end">
+                    {member.role !== "owner" && (isOwner || isAdmin) && (
+                      <span
+                        className={`text-xs inline-flex items-center gap-1.5 font-medium cursor-pointer ${
+                          member.canManageSettings
+                            ? "text-brand-500"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        title="Darf dieser Mitarbeiter die Gruppeneinstellungen verwalten?"
+                      >
+                        <button
+                          onClick={() =>
+                            handleToggleManageSettings(
+                              member.id,
+                              !member.canManageSettings
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                          {member.canManageSettings
+                            ? "Verwaltet Einstellungen"
+                            : "Einstellungen verwalten"}
+                        </button>
+                      </span>
+                    )}
+                    {member.role === "owner" && (
+                      <span className="text-xs inline-flex items-center gap-1 text-muted-foreground">
+                        <Shield className="h-3.5 w-3.5" />
+                        Verwaltet Einstellungen
+                      </span>
+                    )}
                     <span className="text-xs px-2 py-1 rounded-full bg-secondary capitalize">
                       {member.role === "owner"
                         ? "Inhaber"
@@ -292,15 +382,26 @@ export default function GroupDetailPage() {
         {activeTab === "categories" && (
           <div className="rounded-2xl border border-border bg-card p-6">
             {(isOwner || isAdmin) && (
-              <form onSubmit={handleAddCategory} className="flex gap-2 mb-6">
+              <form onSubmit={handleAddCategory} className="flex gap-2 mb-6 flex-wrap">
                 <input
                   type="text"
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   placeholder="Kategorie-Name"
                   required
-                  className="flex-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="flex-1 min-w-40 rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
+                <select
+                  value={newCategoryPriority}
+                  onChange={(e) => setNewCategoryPriority(e.target.value)}
+                  className="rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      Prio: {label}
+                    </option>
+                  ))}
+                </select>
                 <input
                   type="color"
                   value={newCategoryColor}
@@ -334,6 +435,9 @@ export default function GroupDetailPage() {
                       style={{ backgroundColor: cat.color || "#6366f1" }}
                     />
                     <span className="text-sm font-medium">{cat.name}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-secondary">
+                      {PRIORITY_LABELS[cat.priority || "medium"] || "Mittel"}
+                    </span>
                   </div>
                   {(isOwner || isAdmin) && (
                     <button
@@ -374,6 +478,29 @@ export default function GroupDetailPage() {
                 handleUpdateSettings("requireEmailVerification", v)
               }
             />
+
+            <div className="pt-2 border-t border-border">
+              <label className="block text-sm font-medium mb-1">
+                Nächste Aktionen
+              </label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Eine Aktion pro Zeile. Diese Auswahl steht dem Bearbeiter bei
+                jedem Ticket zur Verfügung.
+              </p>
+              <textarea
+                value={nextActionsText}
+                onChange={(e) => setNextActionsText(e.target.value)}
+                rows={4}
+                placeholder={"z. B.\nAuf Antwort warten\nBeim Kunden melden\nCode überprüfen"}
+                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              />
+              <button
+                onClick={handleSaveNextActions}
+                className="mt-2 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+              >
+                Nächste Aktionen speichern
+              </button>
+            </div>
           </div>
         )}
       </main>

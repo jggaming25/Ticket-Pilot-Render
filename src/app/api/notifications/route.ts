@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { notifications } from "@/lib/db/schema";
+import { notifications, tickets } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
@@ -13,9 +13,20 @@ export async function GET(req: NextRequest) {
 
   const userId = (session.user as any).id;
 
+  // Ein Query mit JOIN auf das Ticket (beinhaltet dessen E-Mail)
   const result = await db
-    .select()
+    .select({
+      id: notifications.id,
+      ticketId: notifications.ticketId,
+      type: notifications.type,
+      title: notifications.title,
+      message: notifications.message,
+      read: notifications.read,
+      createdAt: notifications.createdAt,
+      ticketEmail: tickets.email,
+    })
     .from(notifications)
+    .leftJoin(tickets, eq(notifications.ticketId, tickets.id))
     .where(eq(notifications.userId, userId))
     .orderBy(notifications.createdAt)
     .limit(30);

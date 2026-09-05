@@ -13,6 +13,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,6 +29,7 @@ function LoginForm() {
     const result = await signIn("credentials", {
       email,
       password,
+      remember: String(remember),
       redirect: false,
     });
 
@@ -35,7 +37,7 @@ function LoginForm() {
       setError("Email oder Passwort ist falsch");
       setLoading(false);
     } else {
-      router.push("/dashboard");
+      router.push("/groups");
       router.refresh();
     }
   };
@@ -121,6 +123,24 @@ function LoginForm() {
             </div>
           </div>
 
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="accent-brand-500 h-4 w-4"
+              />
+              Angemeldet bleiben
+            </label>
+            <Link
+              href="/forgot-password"
+              className="text-sm text-brand-500 hover:text-brand-600 font-medium"
+            >
+              Passwort vergessen?
+            </Link>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -132,7 +152,7 @@ function LoginForm() {
           {process.env.NEXT_PUBLIC_DISCORD_ENABLED && (
             <button
               type="button"
-              onClick={() => signIn("discord", { callbackUrl: "/dashboard" })}
+              onClick={() => signIn("discord", { callbackUrl: "/groups" })}
               className="w-full rounded-lg bg-[#5865F2] py-2.5 text-sm font-medium text-white hover:bg-[#4752c4] transition-colors"
             >
               Mit Discord anmelden

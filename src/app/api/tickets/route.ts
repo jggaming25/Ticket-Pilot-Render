@@ -23,15 +23,39 @@ export async function GET(req: NextRequest) {
   const groupId = searchParams.get("groupId");
   const mineOnly = searchParams.get("mine") === "true";
 
-  const userGroups = await db
-    .select({ groupId: groupMembers.groupId })
-    .from(groupMembers)
-    .where(eq(groupMembers.userId, userId));
+  const conditions: any[] = [];
 
-  const groupIds = userGroups.map((g) => g.groupId);
+  if (mineOnly) {
+    // "Meine Tickets" zeigt immer die eigenen Tickets – auch ohne Gruppenmitgliedschaft
+    conditions.push(eq(tickets.createdById, userId));
+  } else {
+    const userGroups = await db
+      .select({ groupId: groupMembers.groupId })
+      .from(groupMembers)
+      .where(eq(groupMembers.userId, userId));
 
-  if (groupIds.length === 0) {
-    return NextResponse.json({ tickets: [] });
+    const groupIds = userGroups.map((g) => g.groupId);
+
+    if (groupIds.length === 0) {
+      return NextResponse.json({ tickets: [] });
+    }
+
+    conditions.push(
+      sql`${tickets.groupId} IN (${sql.join(
+        groupIds.map((id) => sql`${id}`),
+        sql`, `
+      )})`
+    );
+  }
+
+  if (statusFilter !== "all") {
+    conditions.push(eq(tickets.status, statusFilter as any));
+  }
+  if (priorityFilter !== "all") {
+    conditions.push(eq(tickets.priority, priorityFilter as any));
+  }
+  if (groupId) {
+    conditions.push(eq(tickets.groupId, groupId as any));
   }
 
   const orderFn = sortOrder === "asc" ? asc : desc;
@@ -47,26 +71,6 @@ export async function GET(req: NextRequest) {
       orderColumn = tickets.createdAt;
   }
 
-  const conditions = [
-    sql`${tickets.groupId} IN (${sql.join(
-      groupIds.map((id) => sql`${id}`),
-      sql`, `
-    )})`,
-  ];
-
-  if (statusFilter !== "all") {
-    conditions.push(eq(tickets.status, statusFilter as any));
-  }
-  if (priorityFilter !== "all") {
-    conditions.push(eq(tickets.priority, priorityFilter as any));
-  }
-  if (groupId) {
-    conditions.push(eq(tickets.groupId, groupId as any));
-  }
-  if (mineOnly) {
-    conditions.push(eq(tickets.createdById, userId));
-  }
-
   const result = await db
     .select({
       id: tickets.id,
@@ -75,10 +79,15 @@ export async function GET(req: NextRequest) {
       description: tickets.description,
       status: tickets.status,
       priority: tickets.priority,
+      email: tickets.email,
+      robloxUsername: tickets.robloxUsername,
+      discordUsername: tickets.discordUsername,
       dueDate: tickets.dueDate,
+      nextAction: tickets.nextAction,
       createdAt: tickets.createdAt,
       createdById: tickets.createdById,
       claimedById: tickets.claimedById,
+      groupId: tickets.groupId,
       category: {
         id: categories.id,
         name: categories.name,
@@ -103,12 +112,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     description,
-    priority,
     groupId,
     categoryId,
     discordUsername,
+    email,
     robloxUsername,
-    dueDate,
     attachments: attachmentFiles,
   } = body;
 
@@ -119,18 +127,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const membership = await db
+  const discord = typeof discordUsername === "string" ? discordUsername.trim() : "";
+  const mail = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+  // Kontaktpflicht: mindestens Discord-Username oder E-Mail-Adresse
+  if (!discord && !mail) {
+    return NextResponse.json(
+      { error: "Bitte gib einen Discord-Username oder eine E-Mail-Adresse an." },
+      { status: 400 }
+    );
+  }
+
+  if (mail && !/^\S+@\S+\.\S+$/.test(mail)) {
+    return NextResponse.json(
+      { error: "Die E-Mail-Adresse ist ungültig." },
+      { status: 400 }
+    );
+  }
+
+  const cat = await db
     .select()
-    .from(groupMembers)
-    .where(
-      and(eq(groupMembers.userId, userId), eq(groupMembers.groupId, groupId))
-    )
+    .from(categories)
+    .where(and(eq(categories.id, categoryId), eq(categories.groupId, groupId)))
     .limit(1);
 
-  if (membership.length === 0) {
+  if (!cat[0]) {
     return NextResponse.json(
-      { error: "Kein Mitglied dieser Gruppe" },
-      { status: 403 }
+      { error: "Kategorie gehört nicht zur Gruppe" },
+      { status: 400 }
     );
   }
 
@@ -143,15 +167,9 @@ export async function POST(req: NextRequest) {
 
   const nextNumber = (lastTickets[0]?.ticketNumber || 0) + 1;
 
-  const cat = await db
-    .select()
-    .from(categories)
-    .where(eq(categories.id, categoryId))
-    .limit(1);
-
   const userName = session.user?.name || "User";
   const subject = `TP-${String(nextNumber).padStart(4, "0")} - ${
-    cat[0]?.name || "Ticket"
+    cat[0].name || "Ticket"
   } - ${userName}`;
 
   const ticketId = crypto.randomUUID();
@@ -162,13 +180,13 @@ export async function POST(req: NextRequest) {
     subject,
     description,
     status: "open",
-    priority: priority || "medium",
+    priority: cat[0].priority, // Priorität wird automatisch aus der Kategorie übernommen
     groupId,
     categoryId,
     createdById: userId,
-    discordUsername: discordUsername || null,
+    discordUsername: discord || null,
+    email: mail || null,
     robloxUsername: robloxUsername || null,
-    dueDate: dueDate ? new Date(dueDate) : null,
   });
 
   if (Array.isArray(attachmentFiles)) {

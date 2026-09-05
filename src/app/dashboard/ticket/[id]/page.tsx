@@ -33,6 +33,9 @@ interface TicketData {
   dueDate: string | null;
   createdAt: string;
   updatedAt: string;
+  email: string | null;
+  nextAction: string | null;
+  nextActions: string[];
   discordUsername: string | null;
   robloxUsername: string | null;
   createdById: string;
@@ -98,6 +101,8 @@ export default function TicketDetailPage() {
   const [commentLoading, setCommentLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"comments" | "history">("comments");
   const [actionError, setActionError] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [nextAction, setNextAction] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -117,6 +122,8 @@ export default function TicketDetailPage() {
     if (res.ok) {
       const data = await res.json();
       setTicket(data.ticket);
+      setDueDate(data.ticket?.dueDate ? data.ticket.dueDate.slice(0, 16) : "");
+      setNextAction(data.ticket?.nextAction || "");
     }
     setLoading(false);
   };
@@ -317,8 +324,15 @@ export default function TicketDetailPage() {
             {ticket.discordUsername && (
               <span>DC: {ticket.discordUsername}</span>
             )}
+            {ticket.email && <span>E-Mail: {ticket.email}</span>}
             {ticket.robloxUsername && (
               <span>Roblox: {ticket.robloxUsername}</span>
+            )}
+            {ticket.nextAction && (
+              <span className="flex items-center gap-1">
+                <Tag className="h-4 w-4" />
+                Nächste Aktion: {ticket.nextAction}
+              </span>
             )}
             {isOwnerOrAdmin && (
               <span className="flex items-center gap-1 text-brand-500">
@@ -419,6 +433,21 @@ export default function TicketDetailPage() {
             </div>
           )}
         </div>
+
+        {(isClaimer || isOwnerOrAdmin) && !isClosed && (
+          <ManagerActions
+            ticket={ticket}
+            dueDate={dueDate}
+            setDueDate={setDueDate}
+            nextAction={nextAction}
+            setNextAction={setNextAction}
+            onError={setActionError}
+            onSaved={() => {
+              fetchTicket();
+              fetchHistory();
+            }}
+          />
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 mb-4 bg-secondary/50 rounded-lg p-1">
@@ -572,6 +601,104 @@ export default function TicketDetailPage() {
         )}
       </main>
       <Footer />
+    </div>
+  );
+}
+
+function ManagerActions({
+  ticket,
+  dueDate,
+  setDueDate,
+  nextAction,
+  setNextAction,
+  onError,
+  onSaved,
+}: {
+  ticket: TicketData;
+  dueDate: string;
+  setDueDate: (v: string) => void;
+  nextAction: string;
+  setNextAction: (v: string) => void;
+  onError: (msg: string) => void;
+  onSaved: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    onError("");
+    const res = await fetch(`/api/tickets/${ticket.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+        nextAction: nextAction || null,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      onError(data.error || "Fehler beim Speichern");
+    } else {
+      onSaved();
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6 mb-6">
+      <h2 className="text-lg font-semibold mb-1">
+        Bearbeitung (verwaltet vom Bearbeiter)
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Fälligkeitsdatum und nächste Aktion werden hier festgelegt.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            Fälligkeitsdatum
+          </label>
+          <input
+            type="datetime-local"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          <button
+            type="button"
+            onClick={() => setDueDate("")}
+            className="mt-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Fälligkeit entfernen
+          </button>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            Nächste Aktion
+          </label>
+          <select
+            value={nextAction}
+            onChange={(e) => setNextAction(e.target.value)}
+            className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">Keine / Auswählen</option>
+            {ticket.nextActions.map((action) => (
+              <option key={action} value={action}>
+                {action}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <button
+        onClick={save}
+        disabled={saving}
+        className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+      >
+        <CheckCircle className="h-4 w-4" />
+        {saving ? "Speichert..." : "Speichern"}
+      </button>
     </div>
   );
 }

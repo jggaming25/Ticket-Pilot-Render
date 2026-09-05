@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { groupMembers, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { isOwnerOrAdmin } from "@/lib/group-permissions";
 
 export async function POST(
   req: NextRequest,
@@ -29,10 +30,7 @@ export async function POST(
     .limit(1);
   const membership = membershipRows[0];
 
-  if (
-    !membership ||
-    (membership.role !== "owner" && membership.role !== "admin")
-  ) {
+  if (!membership || !isOwnerOrAdmin(membership)) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 
@@ -77,6 +75,49 @@ export async function POST(
   return NextResponse.json({ success: true });
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
+  }
+
+  const userId = (session.user as any).id;
+  const { memberId, canManageSettings } = await req.json();
+
+  if (!memberId || typeof canManageSettings !== "boolean") {
+    return NextResponse.json(
+      { error: "Ungültige Anfrage" },
+      { status: 400 }
+    );
+  }
+
+  const membershipRows = await db
+    .select()
+    .from(groupMembers)
+    .where(
+      and(
+        eq(groupMembers.userId, userId),
+        eq(groupMembers.groupId, params.id as any)
+      )
+    )
+    .limit(1);
+  const membership = membershipRows[0];
+
+  if (!membership || !isOwnerOrAdmin(membership)) {
+    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+  }
+
+  await db
+    .update(groupMembers)
+    .set({ canManageSettings })
+    .where(eq(groupMembers.id, memberId));
+
+  return NextResponse.json({ success: true });
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -101,10 +142,7 @@ export async function DELETE(
     .limit(1);
   const membership = membershipRows[0];
 
-  if (
-    !membership ||
-    (membership.role !== "owner" && membership.role !== "admin")
-  ) {
+  if (!membership || !isOwnerOrAdmin(membership)) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
   }
 

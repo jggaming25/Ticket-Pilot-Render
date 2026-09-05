@@ -17,6 +17,7 @@ export const users = sqliteTable("users", {
     mode: "boolean",
   }).default(false),
   role: text("role", { enum: ["user", "admin"] }).default("user"),
+  soundEnabled: integer("sound_enabled", { mode: "boolean" }).default(true),
   banned: integer("banned", { mode: "boolean" }).default(false),
   banReason: text("ban_reason"),
   bannedUntil: integer("banned_until", { mode: "timestamp" }),
@@ -121,6 +122,9 @@ export const groupMembers = sqliteTable("group_members", {
   role: text("role", { enum: ["owner", "admin", "member"] })
     .notNull()
     .default("member"),
+  canManageSettings: integer("can_manage_settings", {
+    mode: "boolean",
+  }).default(false),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -146,6 +150,7 @@ export const groupSettings = sqliteTable("group_settings", {
   requireEmailVerification: integer("require_email_verification", {
     mode: "boolean",
   }).default(false),
+  nextActions: text("next_actions").default("[]"),
 });
 
 export const categories = sqliteTable("categories", {
@@ -157,6 +162,11 @@ export const categories = sqliteTable("categories", {
     .references(() => groups.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   color: text("color").default("#6366f1"),
+  priority: text("priority", {
+    enum: ["low", "medium", "high", "urgent"],
+  })
+    .notNull()
+    .default("medium"),
   icon: text("icon").default("folder"),
   order: integer("order").default(0),
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -192,8 +202,10 @@ export const tickets = sqliteTable("tickets", {
     .references(() => users.id),
   claimedById: text("claimed_by_id").references(() => users.id),
   discordUsername: text("discord_username"),
+  email: text("email"),
   robloxUsername: text("roblox_username"),
   dueDate: integer("due_date", { mode: "timestamp" }),
+  nextAction: text("next_action"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -288,6 +300,12 @@ export const notifications = sqliteTable("notifications", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
+});
+
+export const systemState = sqliteTable("system_state", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
 // Relations

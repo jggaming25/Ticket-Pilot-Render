@@ -23,6 +23,7 @@ interface NotificationItem {
   message: string;
   read: boolean;
   createdAt: string;
+  ticketEmail: string | null;
 }
 
 export function TopBar() {
@@ -57,9 +58,17 @@ export function TopBar() {
       return;
     }
     fetchNotifications();
-    timerRef.current = setInterval(fetchNotifications, 15000);
+    timerRef.current = setInterval(() => {
+      // Nur pollieren, wenn der Tab sichtbar ist (reduziert Serveranfragen)
+      if (document.visibilityState === "visible") fetchNotifications();
+    }, 15000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchNotifications();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [session, fetchNotifications]);
 
@@ -155,9 +164,14 @@ export function TopBar() {
                                   )}
                                   <span className="truncate">{n.title}</span>
                                 </div>
-                                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                                   {n.message}
                                 </p>
+                                {n.ticketEmail && (
+                                  <p className="text-xs text-brand-500/90 truncate mt-0.5">
+                                    {n.ticketEmail}
+                                  </p>
+                                )}
                               </Link>
                             ))}
                           </div>

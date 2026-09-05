@@ -34,38 +34,23 @@ export async function GET(
     );
   }
 
-  const rawMembers = await db
+  // Mitglieder per JOIN laden (kein N+1)
+  const members = await db
     .select({
       id: groupMembers.id,
       role: groupMembers.role,
+      canManageSettings: groupMembers.canManageSettings,
       userId: groupMembers.userId,
+      user: {
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        image: users.image,
+      },
     })
     .from(groupMembers)
+    .innerJoin(users, eq(groupMembers.userId, users.id))
     .where(eq(groupMembers.groupId, params.id as any));
-
-  const enrichedMembers = await Promise.all(
-    rawMembers.map(async (m) => {
-      const userRows = await db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          image: users.image,
-        })
-        .from(users)
-        .where(eq(users.id, m.userId))
-        .limit(1);
-      return {
-        ...m,
-        user: userRows[0] || {
-          id: m.userId,
-          name: "",
-          email: "",
-          image: null,
-        },
-      };
-    })
-  );
 
   const settingsRows = await db
     .select()
@@ -81,7 +66,7 @@ export async function GET(
   return NextResponse.json({
     group: {
       ...groupData,
-      members: enrichedMembers,
+      members,
       settings: settingsRows[0] || null,
       categories: cats,
     },

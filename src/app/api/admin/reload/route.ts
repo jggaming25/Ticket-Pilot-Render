@@ -7,7 +7,7 @@ export async function POST() {
   const { error } = await requireAdmin();
   if (error) return error;
 
-  const tick = bumpReloadTick();
+  const tick = await bumpReloadTick();
 
   // Zusätzlicher Echtzeit-Broadcast, falls Ably konfiguriert ist
   const apiKey = process.env.ABLY_API_KEY;

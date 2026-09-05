@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       discordUsername: users.discordId,
       robloxUsername: users.robloxUsername,
       theme: users.theme,
+      soundEnabled: users.soundEnabled,
       loginVerificationEnabled: users.loginVerificationEnabled,
     })
     .from(users)
@@ -48,6 +49,8 @@ export async function PATCH(req: NextRequest) {
   if (body.robloxUsername !== undefined)
     updates.robloxUsername = body.robloxUsername;
   if (body.theme !== undefined) updates.theme = body.theme;
+  if (body.soundEnabled !== undefined && typeof body.soundEnabled === "boolean")
+    updates.soundEnabled = body.soundEnabled;
   if (body.loginVerificationEnabled !== undefined)
     updates.loginVerificationEnabled = body.loginVerificationEnabled;
 

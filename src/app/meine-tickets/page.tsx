@@ -7,12 +7,7 @@ import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
 import { formatDate, getStatusLabel, getPriorityLabel, getStatusColor } from "@/lib/utils";
-import {
-  Plus,
-  Search,
-  Ticket,
-  Clock,
-} from "lucide-react";
+import { Plus, Search, Ticket, Clock } from "lucide-react";
 
 interface TicketData {
   id: string;
@@ -23,9 +18,8 @@ interface TicketData {
   priority: string;
   dueDate: string | null;
   createdAt: string;
+  groupId: string;
   category: { name: string; color: string } | null;
-  createdBy: { name: string; image: string | null } | null;
-  claimedBy: { name: string; image: string | null } | null;
 }
 
 export default function MyTicketsPage() {
@@ -42,37 +36,23 @@ export default function MyTicketsPage() {
 
   useEffect(() => {
     if (session) {
-      fetchTickets();
+      fetch("/api/tickets?mine=true")
+        .then((r) => r.json())
+        .then((d) => {
+          setTickets(d.tickets || []);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, statusFilter]);
+  }, [session]);
 
-  const fetchTickets = async () => {
-    setLoading(true);
-    const params = new URLSearchParams({ mine: "true", sortBy: "createdAt", sortOrder: "desc" });
-    if (statusFilter !== "all") params.set("status", statusFilter);
-    const res = await fetch(`/api/tickets?${params}`);
-    if (res.ok) {
-      const data = await res.json();
-      setTickets(data.tickets || []);
-    }
-    setLoading(false);
-  };
-
-  const filteredTickets = tickets.filter(
-    (t) =>
+  const filteredTickets = tickets.filter((t) => {
+    const matchesSearch =
       t.subject.toLowerCase().includes(search.toLowerCase()) ||
-      t.description.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const statusCounts = {
-    open: tickets.filter((t) => t.status === "open").length,
-    in_progress: tickets.filter((t) => t.status === "in_progress").length,
-    waiting: tickets.filter((t) => t.status === "waiting").length,
-    resolved: tickets.filter((t) => t.status === "resolved").length,
-    ready_to_close: tickets.filter((t) => t.status === "ready_to_close").length,
-    closed: tickets.filter((t) => t.status === "closed").length,
-  };
+      t.description.toLowerCase().includes(search.toLowerCase());
+    if (statusFilter !== "all" && t.status !== statusFilter) return false;
+    return matchesSearch;
+  });
 
   if (status === "loading") {
     return (
@@ -90,7 +70,7 @@ export default function MyTicketsPage() {
           <div>
             <h1 className="text-2xl font-bold">Meine Tickets</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Übersicht über deine selbst erstellten Tickets
+              Alle Tickets, die du erstellt hast
             </p>
           </div>
           <Link
@@ -102,16 +82,6 @@ export default function MyTicketsPage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
-          <MiniStat label="Offen" value={statusCounts.open} color="text-blue-500" />
-          <MiniStat label="In Bearbeitung" value={statusCounts.in_progress} color="text-yellow-500" />
-          <MiniStat label="Wartend" value={statusCounts.waiting} color="text-orange-500" />
-          <MiniStat label="Gelöst" value={statusCounts.resolved} color="text-green-500" />
-          <MiniStat label="Zu schließen" value={statusCounts.ready_to_close} color="text-cyan-500" />
-          <MiniStat label="Geschlossen" value={statusCounts.closed} color="text-muted-foreground" />
-        </div>
-
-        {/* Filters */}
         <div className="flex flex-col md:flex-row gap-3 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -138,7 +108,6 @@ export default function MyTicketsPage() {
           </select>
         </div>
 
-        {/* Ticket List */}
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
@@ -148,8 +117,7 @@ export default function MyTicketsPage() {
             <Ticket className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Noch keine Tickets</h3>
             <p className="text-muted-foreground mb-4">
-              Hier erscheinen alle Tickets, die du erstellt hast. Erstelle dein
-              erstes Ticket, um Unterstützung anzufragen.
+              Tickets, die du erstellst, erscheinen hier.
             </p>
             <Link
               href="/dashboard/create"
@@ -214,23 +182,6 @@ export default function MyTicketsPage() {
         )}
       </main>
       <Footer />
-    </div>
-  );
-}
-
-function MiniStat({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color: string;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <p className={`text-xl font-bold ${color}`}>{value}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
     </div>
   );
 }

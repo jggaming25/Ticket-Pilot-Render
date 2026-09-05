@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import DiscordProvider from "next-auth/providers/discord";
+import { encode as defaultEncode, decode as defaultDecode } from "next-auth/jwt";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "./db/schema";
@@ -8,8 +9,32 @@ import { eq } from "drizzle-orm";
 import { isAdminEmail } from "./admin";
 import { isBanActive } from "./utils";
 
+const DAY = 24 * 60 * 60;
+const REMEMBER_MAX_AGE = 60 * DAY;
+const SHORT_MAX_AGE = DAY;
+
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: REMEMBER_MAX_AGE,
+  },
+  jwt: {
+    // "Angemeldet bleiben" steuert die Laufzeit des Tokens:
+    // mit Haken 60 Tage, ohne 24 Stunden. Sperren/Löschungen werden
+    // trotzdem live in der session-Callback geprüft.
+    async encode({ token, secret, maxAge, salt }) {
+      const remember = (token as any)?.remember === true;
+      const actualMaxAge = remember ? REMEMBER_MAX_AGE : SHORT_MAX_AGE;
+      const params: any = { token, secret, maxAge: actualMaxAge };
+      if (salt) params.salt = salt;
+      return defaultEncode(params);
+    },
+    async decode({ token, secret, salt }) {
+      const params: any = { token, secret };
+      if (salt) params.salt = salt;
+      return defaultDecode(params) as any;
+    },
+  },
   pages: {
     signIn: "/login",
   },
@@ -27,6 +52,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Passwort", type: "password" },
+        remember: { label: "Angemeldet bleiben", type: "checkbox" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
@@ -56,7 +82,8 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           image: user.image,
           role: user.role || (isAdminEmail(user.email) ? "admin" : "user"),
-        };
+          remember: credentials.remember === "true",
+        } as any;
       },
     }),
   ],
@@ -65,6 +92,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as any).role || "user";
+        // Ohne Angabe (z. B. Discord-Login) standardmäßig "Angemeldet bleiben"
+        token.remember = (user as any).remember ?? true;
       }
       return token;
     },
@@ -91,6 +120,11 @@ export const authOptions: NextAuthOptions = {
             (session.user as any).banReason = live.banReason;
             (session.user as any).bannedUntil = live.bannedUntil;
             (session.user as any).deleteAt = live.deleteAt;
+          } else {
+            // Konto gelöscht: Session wird als hinfällig markiert
+            (session.user as any).banned = true;
+            (session.user as any).banReason = "Dein Konto wurde gelöscht.";
+            (session.user as any).deleteAt = new Date(0);
           }
         } catch {
           // DB nicht erreichbar -> nicht blockieren

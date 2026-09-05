@@ -6,14 +6,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
-import { Users, Plus, LayoutDashboard } from "lucide-react";
+import { Users, Plus } from "lucide-react";
 
 interface GroupData {
   id: string;
   name: string;
   slug: string;
   description: string | null;
-  role: string;
+  role: string | null;
+  canManageSettings: boolean;
   memberCount: number;
   ticketCount: number;
 }
@@ -80,14 +81,12 @@ export default function GroupsPage() {
         ) : (
           <div className="grid gap-4">
             {groups.map((group) => (
-              <div
+              <Link
                 key={group.id}
+                href={`/tickets?groupId=${group.id}`}
                 className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-5 hover:shadow-lg hover:border-brand-500/50 transition-all"
               >
-                <Link
-                  href={`/groups/${group.id}`}
-                  className="flex items-center gap-4 flex-1 min-w-0"
-                >
+                <div className="flex items-center gap-4 flex-1 min-w-0">
                   <div className="h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
                     <Users className="h-6 w-6 text-brand-500" />
                   </div>
@@ -95,18 +94,34 @@ export default function GroupsPage() {
                     <h3 className="font-semibold">{group.name}</h3>
                     <p className="text-sm text-muted-foreground">
                       {group.memberCount} Mitarbeiter · {group.ticketCount}{" "}
-                      Tickets · {group.role}
+                      Tickets ·{" "}
+                      {group.role === "owner"
+                        ? "Inhaber"
+                        : group.role === "admin"
+                        ? "Admin"
+                        : "Mitarbeiter"}
                     </p>
+                    {group.canManageSettings && (
+                      <p className="text-xs text-brand-500 mt-0.5">
+                        Du kannst die Einstellungen verwalten
+                      </p>
+                    )}
                   </div>
-                </Link>
-                <Link
-                  href={`/tickets?groupId=${group.id}`}
-                  className="inline-flex flex-shrink-0 items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors"
+                </div>
+                <svg
+                  className="h-5 w-5 flex-shrink-0 text-muted-foreground"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
                 >
-                  <LayoutDashboard className="h-4 w-4" />
-                  Bearbeiter-Dashboard
-                </Link>
-              </div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </Link>
             ))}
           </div>
         )}

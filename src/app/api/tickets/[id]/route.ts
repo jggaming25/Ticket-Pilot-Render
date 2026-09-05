@@ -31,6 +31,8 @@ export async function GET(
       description: tickets.description,
       status: tickets.status,
       priority: tickets.priority,
+      email: tickets.email,
+      nextAction: tickets.nextAction,
       dueDate: tickets.dueDate,
       createdAt: tickets.createdAt,
       updatedAt: tickets.updatedAt,
@@ -120,6 +122,16 @@ export async function GET(
     .from(groupSettings)
     .where(eq(groupSettings.groupId, ticket.groupId))
     .limit(1);
+  const nextActionsRaw = settingsRows[0]?.nextActions || "[]";
+  let nextActions: string[] = [];
+  try {
+    const parsed = JSON.parse(nextActionsRaw);
+    if (Array.isArray(parsed)) {
+      nextActions = parsed.filter((a) => typeof a === "string");
+    }
+  } catch {
+    nextActions = [];
+  }
   const myRoleRows = await db
     .select({ role: groupMembers.role })
     .from(groupMembers)
@@ -150,6 +162,7 @@ export async function GET(
       claimedBy: claimer,
       attachments: attachmentRows,
       canCloseTickets: settingsRows[0]?.canCloseTickets !== false,
+      nextActions,
       myRole,
       isOwnerOrAdmin,
     },
@@ -266,6 +279,45 @@ export async function PATCH(
 
   if (body.description) {
     updates.description = body.description;
+  }
+
+  // Fälligkeitsdatum & nächste Aktion: nur durch Bearbeiter/Inhaber/Admin
+  if ("dueDate" in body || "nextAction" in body) {
+    if (!isAssignee && !isOwnerOrAdmin) {
+      return NextResponse.json(
+        { error: "Nur der Bearbeiter kann Fälligkeitsdatum oder nächste Aktion setzen" },
+        { status: 403 }
+      );
+    }
+
+    if ("dueDate" in body) {
+      if (body.dueDate === null || body.dueDate === "") {
+        updates.dueDate = null;
+      } else {
+        const d = new Date(body.dueDate);
+        if (isNaN(d.getTime())) {
+          return NextResponse.json(
+            { error: "Ungültiges Datum" },
+            { status: 400 }
+          );
+        }
+        updates.dueDate = d;
+      }
+    }
+
+    if ("nextAction" in body) {
+      if (body.nextAction === null || body.nextAction === "") {
+        updates.nextAction = null;
+      } else {
+        if (typeof body.nextAction !== "string") {
+          return NextResponse.json(
+            { error: "Ungültige nächste Aktion" },
+            { status: 400 }
+          );
+        }
+        updates.nextAction = body.nextAction.slice(0, 300);
+      }
+    }
   }
 
   await db.update(tickets).set(updates).where(eq(tickets.id, params.id as any));

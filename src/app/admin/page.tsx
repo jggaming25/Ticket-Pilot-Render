@@ -17,6 +17,7 @@ import {
   Shield,
   Plus,
   X,
+  KeyRound,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ interface AdminUser {
   bannedUntil: Date | null;
   deleteAt: Date | null;
   createdAt: Date | null;
+  passwordSet: boolean;
 }
 
 interface Announcement {
@@ -65,9 +67,23 @@ export default function AdminPage() {
   const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
   const [deleteType, setDeleteType] = useState<"now" | "at">("now");
   const [deleteAt, setDeleteAt] = useState("");
+  const [passDialogId, setPassDialogId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   // Reload
-  const [reloadCooldown, setReloadCooldown] = useState(0);
+  const [reloadCooldown, setReloadCooldown] = useState(() => {
+    // Cooldown übersteht den erzwungenen Reload dieser Seite
+    if (typeof window === "undefined") return 0;
+    try {
+      const at = Number(
+        window.localStorage.getItem("tp.reloadCommandAt") || 0
+      );
+      const remaining = 25 - Math.floor((Date.now() - at) / 1000);
+      return at > 0 && remaining > 0 ? remaining : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [reloadBusy, setReloadBusy] = useState(false);
 
   // Feedback
@@ -206,6 +222,27 @@ export default function AdminPage() {
     }
   };
 
+  const doSetPassword = async (id: string) => {
+    if (newPassword.length < 8) {
+      flash("Mindestens 8 Zeichen");
+      return;
+    }
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set-password", id, password: newPassword }),
+    });
+    if (res.ok) {
+      flash("Passwort wurde neu gesetzt");
+      setPassDialogId(null);
+      setNewPassword("");
+      loadData();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      flash(d.error || "Fehler beim Setzen des Passworts");
+    }
+  };
+
   const doReload = async () => {
     if (reloadCooldown > 0 || reloadBusy) return;
     setReloadBusy(true);
@@ -213,6 +250,11 @@ export default function AdminPage() {
     setReloadBusy(false);
     if (res.ok) {
       setReloadCooldown(25);
+      try {
+        window.localStorage.setItem("tp.reloadCommandAt", String(Date.now()));
+      } catch {
+        // Storage nicht verfügbar -> Cooldown nur bis zum nächsten Reload
+      }
       flash("Alle offenen Seiten werden neu geladen");
     } else {
       const d = await res.json().catch(() => ({}));
@@ -422,6 +464,11 @@ export default function AdminPage() {
                               Nicht verifiziert
                             </span>
                           )}
+                          {!u.passwordSet && (
+                            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                              Kein Passwort
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground truncate">
                           {u.email}
@@ -480,6 +527,16 @@ export default function AdminPage() {
                         >
                           <Trash2 className="h-4 w-4" />
                           Löschen
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPassDialogId(u.id);
+                            setNewPassword("");
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-medium hover:bg-secondary/80 transition-colors"
+                        >
+                          <KeyRound className="h-4 w-4" />
+                          Passwort setzen
                         </button>
                         {u.deleteAt && (
                           <button
@@ -594,6 +651,47 @@ Sofort löschen
                           >
                             <Trash2 className="h-4 w-4" />
                             {deleteType === "now" ? "Sofort löschen" : "Löschung planen"}
+                          </button>
+                        </div>
+                      </ModalDialog>
+                    )}
+
+                    {passDialogId === u.id && (
+                      <ModalDialog title="Passwort neu setzen" onClose={() => setPassDialogId(null)}>
+                        <div className="space-y-4">
+                          <p className="text-sm text-muted-foreground">
+                            Setze für {u.email || u.name} ein neues Passwort. Der
+                            Nutzer kann sich anschließend damit anmelden.{" "}
+                            {!u.passwordSet ? (
+                              <span className="text-yellow-600 dark:text-yellow-500">
+                                Dieses Konto hat noch kein Passwort – nach dem
+                                Setzen ist der Login sofort möglich.
+                              </span>
+                            ) : (
+                              <span>
+                                Ein bereits existierendes Passwort wird überschrieben.
+                              </span>
+                            )}
+                          </p>
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">
+                              Neues Passwort (mind. 8 Zeichen)
+                            </label>
+                            <input
+                              type="text"
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            />
+                          </div>
+                          <button
+                            onClick={() => doSetPassword(u.id)}
+                            disabled={newPassword.length < 8}
+                            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                            Passwort speichern
                           </button>
                         </div>
                       </ModalDialog>

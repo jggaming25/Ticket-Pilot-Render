@@ -1,6 +1,7 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useEffect } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { isBanActive } from "@/lib/utils";
 
 export function BanGuard({ children }: { children: React.ReactNode }) {
@@ -8,11 +9,22 @@ export function BanGuard({ children }: { children: React.ReactNode }) {
 
   const user = session?.user as any;
   const banned = user && isBanActive(user.banned, user.bannedUntil);
+  const deleted =
+    user && user.deleteAt && new Date(user.deleteAt).getTime() <= Date.now();
 
-  if (!banned) return <>{children}</>;
+  // Nach dem Blockieren die Session abmelden (Löschung/Sperre ignoriert "Angemeldet bleiben")
+  useEffect(() => {
+    if (banned || deleted) {
+      signOut({ callbackUrl: "/login" });
+    }
+  }, [banned, deleted]);
 
-  const banReason = user.banReason || "Du wurdest von dieser Website gesperrt.";
-  const bannedUntil = user.bannedUntil;
+  if (!banned && !deleted) return <>{children}</>;
+
+  const reason = deleted
+    ? "Dein Konto wurde gelöscht."
+    : user.banReason || "Du wurdest von dieser Website gesperrt.";
+  const blockedUntil = banned ? user.bannedUntil : null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background px-4">
@@ -32,18 +44,20 @@ export function BanGuard({ children }: { children: React.ReactNode }) {
             />
           </svg>
         </div>
-        <h2 className="text-xl font-bold mb-2">Dein Konto ist gesperrt</h2>
-        <p className="text-muted-foreground mb-2">{banReason}</p>
-        {bannedUntil ? (
+        <h2 className="text-xl font-bold mb-2">
+          {deleted ? "Konto gelöscht" : "Dein Konto ist gesperrt"}
+        </h2>
+        <p className="text-muted-foreground mb-2">{reason}</p>
+        {blockedUntil ? (
           <p className="text-sm text-muted-foreground mb-4">
             Gesperrt bis:{" "}
             <span className="font-medium text-foreground">
-              {new Date(bannedUntil).toLocaleString("de-DE")}
+              {new Date(blockedUntil).toLocaleString("de-DE")}
             </span>
           </p>
         ) : (
           <p className="text-sm text-muted-foreground mb-4">
-            Gesperrt ohne Zeitlimit.
+            Du wirst in Kürze abgemeldet.
           </p>
         )}
       </div>

@@ -270,3 +270,23 @@ export async function sendCommentNotice(params: {
 
   return sendRaw(toEmail, subject, html);
 }
+
+export async function sendPasswordReset(email: string, password: string) {
+  const subject = "Ticket Pilot - Neues Passwort";
+
+  const html = buildStyledHtml({
+    kicker: "Passwort zurückgesetzt",
+    title: "Dein neues Passwort",
+    paragraphs: [
+      "Es wurde ein neues Passwort für dein Ticket Pilot Konto erstellt:",
+      `<span style="color:#c7d2fe;background:rgba(99,102,241,0.12);display:block;padding:14px 16px;border-radius:10px;font-size:16px;letter-spacing:1px;text-align:center;font-family:ui-monospace,monospace;">${password}</span>`,
+      "Melde dich damit an und ändere dein Passwort anschließend in den Einstellungen.",
+    ],
+    buttonLabel: "Zum Login",
+    buttonUrl: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/login`,
+    footer:
+      "Falls du kein neues Passwort angefordert hast, wende dich bitte an deinen Administrator.",
+  });
+
+  return sendRaw(email, subject, html);
+}

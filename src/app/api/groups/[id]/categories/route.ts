@@ -4,6 +4,38 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { categories, groupMembers } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { canManageGroupSettings } from "@/lib/group-permissions";
+
+const VALID_PRIORITIES = ["low", "medium", "high", "urgent"];
+
+async function requireManager(groupId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return {
+      error: NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 }),
+      response: null as NextResponse | null,
+    };
+  }
+
+  const userId = (session.user as any).id;
+  const membershipRows = await db
+    .select()
+    .from(groupMembers)
+    .where(
+      and(eq(groupMembers.userId, userId), eq(groupMembers.groupId, groupId))
+    )
+    .limit(1);
+  const membership = membershipRows[0];
+
+  if (!membership || !canManageGroupSettings(membership)) {
+    return {
+      error: NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 }),
+      response: null as NextResponse | null,
+    };
+  }
+
+  return { error: null as NextResponse | null, response: null as NextResponse | null };
+}
 
 export async function GET(
   req: NextRequest,
@@ -21,13 +53,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
-  }
+  const { error } = await requireManager(params.id);
+  if (error) return error;
 
-  const userId = (session.user as any).id;
-  const { name, color } = await req.json();
+  const { name, color, priority } = await req.json();
 
   if (!name?.trim()) {
     return NextResponse.json(
@@ -36,64 +65,66 @@ export async function POST(
     );
   }
 
-  const membershipRows = await db
-    .select()
-    .from(groupMembers)
-    .where(
-      and(
-        eq(groupMembers.userId, userId),
-        eq(groupMembers.groupId, params.id as any)
-      )
-    )
-    .limit(1);
-  const membership = membershipRows[0];
+  const priorityValue = VALID_PRIORITIES.includes(priority) ? priority : "medium";
 
-  if (
-    !membership ||
-    (membership.role !== "owner" && membership.role !== "admin")
-  ) {
-    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+  const row = await db
+    .insert(categories)
+    .values({
+      groupId: params.id,
+      name: name.trim(),
+      color: color || "#6366f1",
+      priority: priorityValue,
+    })
+    .returning();
+
+  return NextResponse.json({ success: true, category: row[0] });
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { error } = await requireManager(params.id);
+  if (error) return error;
+
+  const { categoryId, name, color, priority } = await req.json();
+
+  if (!categoryId) {
+    return NextResponse.json(
+      { error: "Kategorie fehlt" },
+      { status: 400 }
+    );
   }
 
-  await db.insert(categories).values({
-    groupId: params.id,
-    name: name.trim(),
-    color: color || "#6366f1",
-  });
+  const update: Record<string, unknown> = {};
+  if (typeof name === "string" && name.trim()) update.name = name.trim();
+  if (typeof color === "string") update.color = color;
+  if (VALID_PRIORITIES.includes(priority)) update.priority = priority;
 
-  return NextResponse.json({ success: true });
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json(
+      { error: "Keine gültigen Felder" },
+      { status: 400 }
+    );
+  }
+
+  const row = await db
+    .update(categories)
+    .set(update)
+    .where(eq(categories.id, categoryId))
+    .returning();
+
+  return NextResponse.json({ success: true, category: row[0] });
 }
 
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
-  }
+  const { error } = await requireManager(params.id);
+  if (error) return error;
 
-  const userId = (session.user as any).id;
   const { categoryId } = await req.json();
-
-  const membershipRows = await db
-    .select()
-    .from(groupMembers)
-    .where(
-      and(
-        eq(groupMembers.userId, userId),
-        eq(groupMembers.groupId, params.id as any)
-      )
-    )
-    .limit(1);
-  const membership = membershipRows[0];
-
-  if (
-    !membership ||
-    (membership.role !== "owner" && membership.role !== "admin")
-  ) {
-    return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
-  }
 
   await db.delete(categories).where(eq(categories.id, categoryId));
 

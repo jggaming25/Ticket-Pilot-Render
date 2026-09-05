@@ -4,6 +4,14 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { groupSettings, groupMembers } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { canManageGroupSettings } from "@/lib/group-permissions";
+
+const BOOLEAN_KEYS = [
+  "canCloseTickets",
+  "canClaimTickets",
+  "canCommentTickets",
+  "requireEmailVerification",
+] as const;
 
 export async function PATCH(
   req: NextRequest,
@@ -29,16 +37,32 @@ export async function PATCH(
     .limit(1);
   const membership = membershipRows[0];
 
-  if (
-    !membership ||
-    (membership.role !== "owner" && membership.role !== "admin")
-  ) {
+  if (!membership || !canManageGroupSettings(membership)) {
     return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
+  }
+
+  const update: Record<string, unknown> = {};
+
+  for (const key of BOOLEAN_KEYS) {
+    if (typeof body[key] === "boolean") {
+      update[key] = body[key];
+    }
+  }
+
+  if (typeof body.nextActions === "string") {
+    update.nextActions = body.nextActions;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json(
+      { error: "Keine gültigen Felder" },
+      { status: 400 }
+    );
   }
 
   await db
     .update(groupSettings)
-    .set(body)
+    .set(update)
     .where(eq(groupSettings.groupId, params.id as any));
 
   return NextResponse.json({ success: true });

@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
-import { ArrowLeft, CalendarDays, Paperclip, X } from "lucide-react";
+import { ArrowLeft, Paperclip, X } from "lucide-react";
 import Link from "next/link";
 
 interface PendingFile {
@@ -34,10 +34,9 @@ function CreateTicketPageInner() {
   );
   const [selectedCategory, setSelectedCategory] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("medium");
   const [discordUsername, setDiscordUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [robloxUsername, setRobloxUsername] = useState("");
-  const [dueDate, setDueDate] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [fileError, setFileError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,7 +48,8 @@ function CreateTicketPageInner() {
 
   useEffect(() => {
     if (session) {
-      fetch("/api/groups")
+      // Alle existierenden Gruppen (gruppenübergreifend), nicht nur eigene
+      fetch("/api/groups?all=true")
         .then((r) => r.json())
         .then((d) => setGroups(d.groups || []));
     }
@@ -104,12 +104,11 @@ function CreateTicketPageInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description,
-          priority,
           groupId: selectedGroup,
           categoryId: selectedCategory,
           discordUsername: discordUsername || undefined,
+          email: email || undefined,
           robloxUsername: robloxUsername || undefined,
-          dueDate: dueDate || undefined,
           attachments: files,
         }),
       });
@@ -199,6 +198,26 @@ function CreateTicketPageInner() {
                 </option>
               ))}
             </select>
+            {selectedCategory && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Priorität wird automatisch aus der Kategorie übernommen:{" "}
+                <span className="font-medium">
+                  {(() => {
+                    const cat = categories.find(
+                      (c: any) => c.id === selectedCategory
+                    );
+                    if (!cat) return "";
+                    const labels: Record<string, string> = {
+                      low: "Niedrig",
+                      medium: "Mittel",
+                      high: "Hoch",
+                      urgent: "Dringend",
+                    };
+                    return labels[String(cat.priority)] || "Unbekannt";
+                  })()}
+                </span>
+              </p>
+            )}
           </div>
 
           <div>
@@ -217,60 +236,50 @@ function CreateTicketPageInner() {
 
           <div>
             <label className="block text-sm font-medium mb-1.5">
-              Priorität
+              Kontakt *
             </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              <option value="low">Niedrig</option>
-              <option value="medium">Mittel</option>
-              <option value="high">Hoch</option>
-              <option value="urgent">Dringend</option>
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
-                Discord Username
-              </label>
-              <input
-                type="text"
-                value={discordUsername}
-                onChange={(e) => setDiscordUsername(e.target.value)}
-                placeholder="optional"
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
-                Roblox Username
-              </label>
-              <input
-                type="text"
-                value={robloxUsername}
-                onChange={(e) => setRobloxUsername(e.target.value)}
-                placeholder="optional"
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
+            <p className="text-xs text-muted-foreground mb-3">
+              Gib mindestens einen Discord Username oder eine E-Mail-Adresse an.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  Discord Username
+                </label>
+                <input
+                  type="text"
+                  value={discordUsername}
+                  onChange={(e) => setDiscordUsername(e.target.value)}
+                  placeholder="z. B. jann#1234"
+                  className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  E-Mail
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="deine@email.de"
+                  className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1.5">
-              Fälligkeitsdatum
+              Roblox Username
             </label>
-            <div className="relative">
-              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="datetime-local"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full rounded-lg border border-input bg-background pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
+            <input
+              type="text"
+              value={robloxUsername}
+              onChange={(e) => setRobloxUsername(e.target.value)}
+              placeholder="optional"
+              className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
           </div>
 
           <div>
